@@ -7,6 +7,7 @@ from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
 # Requires FBX SDK
 import fbx, FbxCommon
 from . import fbx_utils
+from . import fbx_gl_utils
 
 # Requires PyOpenGL
 from OpenGL import GL
@@ -103,7 +104,7 @@ class FBXViewportWidget(BaseViewportWidget):
         super().__init__(parent)
 
         # fbx things
-        self.fbx_handler = fbx_utils.FbxHandler()
+        self.fbx_handlers = []
         self.time = fbx.FbxTime()
 
         # time variables
@@ -123,37 +124,53 @@ class FBXViewportWidget(BaseViewportWidget):
     def paintGL(self):
         super().paintGL()
 
-        # draw current frame from fbx
-        if self.fbx_handler.is_loaded:
+        for fbx_handler in self.fbx_handlers: # type: fbx_utils.FbxHandler
+            if not fbx_handler.is_loaded:
+                continue
+
             self.time.SetTime(0, 0, 0, self.active_frame)
+            fbx_gl_utils.recursive_draw_fbx_skeleton(
+                fbx_handler.scene.GetRootNode(), 
+                self.time,
+                fbx_handler.display_color,
+                )
             
-            for node in self.fbx_handler.get_all_nodes(): # type: fbx.FbxNode
-                node_attribute = node.GetNodeAttribute()
-                if not node_attribute:
-                    continue
-
-                if node_attribute.GetAttributeType() == FbxCommon.FbxNodeAttribute.eSkeleton:
-                    node_transform = node.EvaluateGlobalTransform(self.time) # type: fbx.FbxAMatrix
-                    scene_utils.draw_locator(node_transform.GetT(), size=5)
-
-                    parent_transform = node.GetParent().EvaluateGlobalTransform(self.time) # type: fbx.FbxAMatrix
-                    parent_pos = parent_transform.GetT()
-                    parent_at_origo = all(coord == 0.0 for coord in parent_pos)
-
-                    if not parent_at_origo:
-                        scene_utils.draw_line(node_transform.GetT(), parent_pos)
-
-    def load_fbx(self, fbx_file_path=None):
-        if not fbx_file_path or not os.path.exists(fbx_file_path):
-            print("failed to find fbx file")
+    def load_fbx_files(self, fbx_file_paths=None):
+        if not fbx_file_paths:
             return
 
-        self.fbx_handler.load_scene(fbx_file_path)
-        self.start_frame = self.fbx_handler.get_start_frame()
-        self.end_frame = self.fbx_handler.get_end_frame()
+        self.remove_existing_handlers()
+
+        if not isinstance(fbx_file_paths, list):
+            fbx_file_paths = [fbx_file_paths]
+
+        start_times = []
+        end_times = []
+        for fbx_file in fbx_file_paths:
+            if not os.path.exists(fbx_file):
+                print(f"Failed to find fbx file: {fbx_file}")
+                return
+
+            fbx_handler = fbx_utils.FbxHandler()
+            fbx_handler.load_scene(fbx_file)
+            self.fbx_handlers.append(fbx_handler)
+            start_times.append(fbx_handler.get_start_frame())
+            end_times.append(fbx_handler.get_end_frame())
+
+            # assign random color to distinguish multiple clips
+            if len(fbx_file_paths) > 1:
+                fbx_handler.display_color = ui_utils.get_random_color()
+
+        self.start_frame = min(start_times)
+        self.end_frame = max(end_times)
         self.active_frame = self.start_frame
         self.update()
     
+    def remove_existing_handlers(self):
+        for handler in self.fbx_handlers: # type: fbx_utils.FbxHandler
+            handler.unload_scene()
+        self.fbx_handlers.clear()
+
     def toggle_play(self):
         self.play_active = not self.play_active
 
@@ -220,8 +237,8 @@ class MocapFinderViewportWidget(QtWidgets.QWidget):
         ui_utils.add_hotkey(self, "Shift+Right", lambda: self.fbx_viewport.increment_frame(15))
         ui_utils.add_hotkey(self, "Space", self.fbx_viewport.toggle_play)
 
-    def load_fbx(self, fbx_path=None):
-        self.fbx_viewport.load_fbx(fbx_path)
+    def load_fbx_files(self, fbx_path=None):
+        self.fbx_viewport.load_fbx_files(fbx_path)
         self.time_slider.setMinimum(self.fbx_viewport.start_frame)
         self.time_slider.setMaximum(self.fbx_viewport.end_frame)
         self.start_frame_display.setText(str(self.fbx_viewport.start_frame))
@@ -255,6 +272,8 @@ class MocapFileTree(QtWidgets.QWidget):
         self.model.setNameFilterDisables(False)
 
         self.tree_view = QtWidgets.QTreeView()
+        self.tree_view.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
+        self.tree_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tree_view.setModel(self.model)
         self.tree_view.hideColumn(1)
         self.tree_view.hideColumn(2)
@@ -293,6 +312,13 @@ class MocapFileTree(QtWidgets.QWidget):
         index = self.tree_view.currentIndex()
         file_path = self.model.filePath(index)
         return file_path.replace("\\", "/")
+            
+    def get_selected_paths(self):
+        file_paths = []
+        for index in self.tree_view.selectedIndexes():
+            file_path = self.model.filePath(index).replace("\\", "/")
+            file_paths.append(file_path)
+        return file_paths
 
     def get_folder(self):
         return self.folder_path.text()
@@ -318,10 +344,20 @@ class MocapFinderWindow(ui_utils.ToolWindow):
         main_splitter.setSizes([1, 6])
 
         # connect signals between widgets
-        self.finder_file_tree.file_double_clicked.connect(self.finder_viewport_widget.load_fbx)
-        
+        self.finder_file_tree.file_double_clicked.connect(self.finder_viewport_widget.load_fbx_files)
+        self.finder_file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
+
         main_layout.addWidget(main_splitter)
         self.setCentralWidget(main_widget)
+        self.context_menu_actions = [
+            {"Load all selected": self.load_all_selected},
+        ]
+
+    def context_menu(self):
+        return ui_utils.build_menu_from_action_list(self.context_menu_actions)
+
+    def load_all_selected(self):
+        self.finder_viewport_widget.load_fbx_files(self.finder_file_tree.get_selected_paths())
 
     
 def main(refresh=False):

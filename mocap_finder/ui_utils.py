@@ -200,3 +200,13 @@ def add_hotkey(owner, shortcut, command):
     action.setShortcut(shortcut)
     owner.addAction(action)
 
+def get_random_color():
+    import random
+    import colorsys
+
+    hue = random.random()
+    light = 0.8
+    saturation = min(0.5 + ((random.random() - 0.5) * 0.3), 1.0)
+
+    random_color = colorsys.hls_to_rgb(hue, light, saturation)
+    return random_color

@@ -7,6 +7,7 @@ class FbxHandler():
         self.anim_stack = None
         self.anim_layer = None
         self.is_loaded = False
+        self.display_color = (1.0, 1.0, 1.0)
 
     def load_scene(self, file_path):
         self.result = FbxCommon.LoadScene(self.manager, self.scene, file_path)
@@ -17,16 +18,6 @@ class FbxHandler():
     def unload_scene(self):
         self.manager.Destroy()
         self.is_loaded = False
-
-    def get_all_nodes(self):
-        node_list = []
-        self.recursive_get_children(self.scene.GetRootNode(), node_list)
-        return node_list
-    
-    def recursive_get_children(self, node, node_list):
-        node_list.append(node)
-        for i in range(node.GetChildCount()):
-            self.recursive_get_children(node.GetChild(i), node_list)
 
     def get_start_frame(self):
         return self.anim_stack.GetLocalTimeSpan().GetStart().GetFrameCount()

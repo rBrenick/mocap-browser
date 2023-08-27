@@ -25,10 +25,10 @@ def draw_locator(pos, size=10):
     GL.glEnd()
 
 
-def draw_line(start_pos, end_pos):
-    GL.glLineWidth(2.0)
+def draw_line(start_pos, end_pos, color=(1.0, 1.0, 1.0)):
+    GL.glLineWidth(4.0)
     GL.glBegin(GL.GL_LINES)
-    GL.glColor(1.0, 1.0, 1.0)
+    GL.glColor(*color)
     GL.glVertex(start_pos[0], start_pos[1], start_pos[2])
     GL.glVertex(end_pos[0], end_pos[1], end_pos[2])
     GL.glEnd()
