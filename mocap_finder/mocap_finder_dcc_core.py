@@ -1,0 +1,6 @@
+class MocapFinderCoreInterface(object):
+    pass
+
+
+
+
