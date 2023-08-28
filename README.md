@@ -1,4 +1,4 @@
-# mocap-finder
+# mocap-browser
 WIP standalone fbx viewer tool
 
 ![tool header image](docs/header_image.png)
@@ -20,8 +20,8 @@ PyOpenGL, Python FBX SDK
 
 <pre>
 
-import mocap_finder
-mocap_finder.main()
+import mocap_browser
+mocap_browser.main()
 
 </pre>
 

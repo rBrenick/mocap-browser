@@ -1,0 +1,6 @@
+class MocapBrowserCoreInterface(object):
+    pass
+
+
+
+

@@ -1,15 +1,15 @@
 # This script takes the current tool directory
 # clones it to another folder with the same parent directory
-# renames all the instances of the current MocapFinder with the prompted new name
+# renames all the instances of the current MocapBrowser with the prompted new name
 # searches through files and replaces in there as well
 
-# parent directory of the mocap-finder
+# parent directory of the mocap-browser
 $TOOLS_DIR = (Get-Item -Path "..\").FullName
 
 # define current tool name variables
-$CURRENT_base_case = "mocap-finder"
-$CURRENT_snake_case = "mocap_finder"
-$CURRENT_PascalCase = "MocapFinder"
+$CURRENT_base_case = "mocap-browser"
+$CURRENT_snake_case = "mocap_browser"
+$CURRENT_PascalCase = "MocapBrowser"
 $CURRENT_TOOL_FOLDER = (Get-Item -Path ".").FullName
 
 # get new tool name
@@ -52,7 +52,7 @@ Foreach-Object {
     
 }
 
-# Find instances of mocap_finder in files and replace them with the new tool name
+# Find instances of mocap_browser in files and replace them with the new tool name
 Get-ChildItem $NEW_TOOL_FOLDER -recurse -File | 
 Foreach-Object {
     
@@ -61,7 +61,7 @@ Foreach-Object {
     ((Get-Content -path $_.FullName -Raw) -replace $CURRENT_base_case, $NEW_base_case) | Set-Content -Path $_.FullName
     ((Get-Content -path $_.FullName -Raw) -replace $CURRENT_snake_case, $NEW_snake_case) | Set-Content -Path $_.FullName
     ((Get-Content -path $_.FullName -Raw) -replace $CURRENT_PascalCase, $NEW_PascalCase) | Set-Content -Path $_.FullName
-    ((Get-Content -path $_.FullName -Raw) -replace "mocap-finder", $NEW_base_case) | Set-Content -Path $_.FullName
+    ((Get-Content -path $_.FullName -Raw) -replace "mocap-browser", $NEW_base_case) | Set-Content -Path $_.FullName
     
 }
 

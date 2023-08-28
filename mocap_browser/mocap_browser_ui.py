@@ -197,7 +197,7 @@ class FBXViewportWidget(BaseViewportWidget):
         self.update()
 
 
-class MocapFinderViewportWidget(QtWidgets.QWidget):
+class MocapBrowserViewportWidget(QtWidgets.QWidget):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -329,23 +329,23 @@ class MocapFileTree(QtWidgets.QWidget):
         self.folder_path.setText(folder_path)
 
 
-class MocapFinderWindow(ui_utils.ToolWindow):
+class MocapBrowserWindow(ui_utils.ToolWindow):
     def __init__(self):
-        super(MocapFinderWindow, self).__init__()
+        super(MocapBrowserWindow, self).__init__()
         main_widget = QtWidgets.QWidget()
         main_layout = QtWidgets.QHBoxLayout()
         main_widget.setLayout(main_layout)
 
         main_splitter = QtWidgets.QSplitter()
-        self.finder_file_tree = MocapFileTree(self)
-        self.finder_viewport_widget = MocapFinderViewportWidget(self)
-        main_splitter.addWidget(self.finder_file_tree)
-        main_splitter.addWidget(self.finder_viewport_widget)
+        self.browser_file_tree = MocapFileTree(self)
+        self.browser_viewport_widget = MocapBrowserViewportWidget(self)
+        main_splitter.addWidget(self.browser_file_tree)
+        main_splitter.addWidget(self.browser_viewport_widget)
         main_splitter.setSizes([1, 6])
 
         # connect signals between widgets
-        self.finder_file_tree.file_double_clicked.connect(self.finder_viewport_widget.load_fbx_files)
-        self.finder_file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
+        self.browser_file_tree.file_double_clicked.connect(self.browser_viewport_widget.load_fbx_files)
+        self.browser_file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
 
         main_layout.addWidget(main_splitter)
         self.setCentralWidget(main_widget)
@@ -357,11 +357,11 @@ class MocapFinderWindow(ui_utils.ToolWindow):
         return ui_utils.build_menu_from_action_list(self.context_menu_actions)
 
     def load_all_selected(self):
-        self.finder_viewport_widget.load_fbx_files(self.finder_file_tree.get_selected_paths())
+        self.browser_viewport_widget.load_fbx_files(self.browser_file_tree.get_selected_paths())
 
     
 def main(refresh=False):
-    win = MocapFinderWindow()
+    win = MocapBrowserWindow()
     win.main(refresh=refresh)
     win.resize(QtCore.QSize(720, 480))
 

@@ -5,7 +5,7 @@ import sys
 import traceback
 
 
-def _mocap_finder_site_dir_setup():
+def _mocap_browser_site_dir_setup():
     dirname = os.path.dirname
 
     # Add site-packages to sys.path
@@ -15,12 +15,12 @@ def _mocap_finder_site_dir_setup():
         site.addsitedir(package_dir)
 
 
-_mocap_finder_site_dir_setup()
+_mocap_browser_site_dir_setup()
 
 try:
-    import mocap_finder
+    import mocap_browser
 
-    mocap_finder.startup()
+    mocap_browser.startup()
 except Exception as e:
     traceback.print_exc()
 

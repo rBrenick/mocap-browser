@@ -3,10 +3,10 @@ from maya import cmds
 from base import MayaBaseTestCase
 
 
-import mocap_finder.mocap_finder_system as system
+import mocap_browser.mocap_browser_system as system
 
 
-class TestMocapFinderSystem(MayaBaseTestCase):
+class TestMocapBrowserSystem(MayaBaseTestCase):
     
     def test_system(self):
         """Test system in some fashion"""

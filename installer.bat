@@ -2,7 +2,7 @@
 :BEGIN
 CLS
 
-ECHO Welcome to mocap-finder
+ECHO Welcome to mocap-browser
 ECHO Here are the options
 ECHO.
 

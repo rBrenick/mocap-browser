@@ -1,6 +1,6 @@
 def main(*args, **kwargs):
-    from . import mocap_finder_ui
-    return mocap_finder_ui.main(*args, **kwargs)
+    from . import mocap_browser_ui
+    return mocap_browser_ui.main(*args, **kwargs)
 
 
 def reload_modules():
@@ -12,14 +12,14 @@ def reload_modules():
     
     from . import fbx_utils
     from .gl_utils import scene_utils
-    from . import mocap_finder_dcc_core
-    from . import mocap_finder_system
-    from . import mocap_finder_ui
+    from . import mocap_browser_dcc_core
+    from . import mocap_browser_system
+    from . import mocap_browser_ui
     reload(fbx_utils)
     reload(scene_utils)
-    reload(mocap_finder_dcc_core)
-    reload(mocap_finder_system)
-    reload(mocap_finder_ui)
+    reload(mocap_browser_dcc_core)
+    reload(mocap_browser_system)
+    reload(mocap_browser_ui)
     
 
 def startup():

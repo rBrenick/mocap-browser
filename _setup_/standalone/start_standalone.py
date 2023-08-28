@@ -1,2 +1,2 @@
-import mocap_finder
-mocap_finder.main()
+import mocap_browser
+mocap_browser.main()

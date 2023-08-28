@@ -30,14 +30,14 @@ function SafeRemove
 # Lotsa variables
 $USER_DOWNLOADS_FOLDER = "$env:userprofile\Downloads"
 
-$TOOL_GIT_REPO = "https://github.com/rBrenick/mocap-finder/archive/main.zip" # modify these after uploading the tool
-$UPDATE_PATHS = @("docs", "mocap_finder", "README.md", "setup.py")
+$TOOL_GIT_REPO = "https://github.com/rBrenick/mocap-browser/archive/main.zip" # modify these after uploading the tool
+$UPDATE_PATHS = @("docs", "mocap_browser", "README.md", "setup.py")
 
 $CURRENT_TOOL_FOLDER = (Get-Item -Path ".").FullName
-$CURRENT_mocap_finder = (Get-Item -Path ".").Name
+$CURRENT_mocap_browser = (Get-Item -Path ".").Name
 
-$NEW_VERSION_ZIP = $USER_DOWNLOADS_FOLDER + "\" + $CURRENT_mocap_finder + "_update.zip"
-$NEW_VERSION_ZIP_FOLDER = $USER_DOWNLOADS_FOLDER + "\" + $CURRENT_mocap_finder + "_update"
+$NEW_VERSION_ZIP = $USER_DOWNLOADS_FOLDER + "\" + $CURRENT_mocap_browser + "_update.zip"
+$NEW_VERSION_ZIP_FOLDER = $USER_DOWNLOADS_FOLDER + "\" + $CURRENT_mocap_browser + "_update"
 
 SafeRemove $NEW_VERSION_ZIP
 SafeRemove $NEW_VERSION_ZIP_FOLDER
@@ -78,7 +78,7 @@ foreach ($element in $UPDATE_PATHS) {
 # Copy new directories
 foreach ($element in $UPDATE_PATHS) {
     # Since it's the latest version it will have -master suffix in the folder name
-    $src_file_path = "$NEW_VERSION_ZIP_FOLDER\$CURRENT_mocap_finder-master\$element"
+    $src_file_path = "$NEW_VERSION_ZIP_FOLDER\$CURRENT_mocap_browser-master\$element"
     $tgt_file_path = "$CURRENT_TOOL_FOLDER\$element"
     
     echo "Copying new $tgt_file_path"

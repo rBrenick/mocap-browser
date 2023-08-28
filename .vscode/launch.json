@@ -8,7 +8,7 @@
             "name": "Standalone Launch",
             "type": "python",
             "request": "launch",
-            "program": "D:/git/mocap-finder/_setup_/standalone/start_standalone.py",
+            "program": "D:/git/mocap-browser/_setup_/standalone/start_standalone.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }
