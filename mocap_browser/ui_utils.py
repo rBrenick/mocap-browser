@@ -200,6 +200,7 @@ def add_hotkey(owner, shortcut, command):
     action.setShortcut(shortcut)
     owner.addAction(action)
 
+
 def get_random_color():
     import random
     import colorsys

@@ -1,4 +1,4 @@
-python.exe -m venv _setup_/standalone/.venv
+C:\python\python37\python.exe -m venv _setup_/standalone/.venv
 call _setup_/standalone/.venv/Scripts/Activate
 pip install -r _setup_/standalone/requirements.txt
 pip install -e .

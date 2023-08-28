@@ -14,6 +14,7 @@ from OpenGL import GL
 from .gl_utils import camera
 from .gl_utils import scene_utils
 
+from .qt_time_slider import TimeSliderWidget
 
 standalone_app = None
 if not QtWidgets.QApplication.instance():
@@ -208,27 +209,14 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
         self.fbx_viewport = FBXViewportWidget(self)
         self.main_layout.addWidget(self.fbx_viewport)
 
-        # time slider layout
-        self.start_frame_display = QtWidgets.QLineEdit()
-        self.start_frame_display.setFocusPolicy(QtCore.Qt.ClickFocus)
-        self.start_frame_display.setMaximumWidth(50)
-        self.start_frame_display.setEnabled(False)
-        self.end_frame_display = QtWidgets.QLineEdit()
-        self.end_frame_display.setFocusPolicy(QtCore.Qt.ClickFocus)
-        self.end_frame_display.setMaximumWidth(50)
-        self.end_frame_display.setEnabled(False)
-
-        self.time_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.time_slider.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed))
-        time_layout = QtWidgets.QHBoxLayout()
-        time_layout.addWidget(self.start_frame_display)
-        time_layout.addWidget(self.time_slider)
-        time_layout.addWidget(self.end_frame_display)
-        self.main_layout.addLayout(time_layout)
-
+        # time slider
+        self.timeline = TimeSliderWidget(precision=0)
+        self.timeline.setMaximumHeight(30)
+        self.main_layout.addWidget(self.timeline)
+        
         # connect signals
-        self.fbx_viewport.frame_changed.connect(self.update_slider_frame)
-        self.time_slider.valueChanged.connect(self.fbx_viewport.set_frame)
+        self.timeline.value_changed.connect(self.fbx_viewport.set_frame)
+        self.fbx_viewport.frame_changed.connect(self.timeline.set_value)
 
         # create hotkeys
         ui_utils.add_hotkey(self, "Left", lambda: self.fbx_viewport.increment_frame(-1))
@@ -239,13 +227,9 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
 
     def load_fbx_files(self, fbx_path=None):
         self.fbx_viewport.load_fbx_files(fbx_path)
-        self.time_slider.setMinimum(self.fbx_viewport.start_frame)
-        self.time_slider.setMaximum(self.fbx_viewport.end_frame)
-        self.start_frame_display.setText(str(self.fbx_viewport.start_frame))
-        self.end_frame_display.setText(str(self.fbx_viewport.end_frame))
-
-    def update_slider_frame(self, frame):
-        self.time_slider.setValue(frame)
+        self.timeline.set_minimum(self.fbx_viewport.start_frame)
+        self.timeline.set_maximum(self.fbx_viewport.end_frame)
+        self.timeline.reset_selection()
 
 
 class MocapFileTree(QtWidgets.QWidget):
@@ -262,6 +246,7 @@ class MocapFileTree(QtWidgets.QWidget):
         self.search_line_edit = QtWidgets.QLineEdit()
         self.search_line_edit.setFocusPolicy(QtCore.Qt.ClickFocus)
         self.search_line_edit.setPlaceholderText("Search...")
+        self.search_line_edit.textChanged.connect(self._set_filter)
 
         self.set_folder_button = QtWidgets.QPushButton("...")
         self.set_folder_button.clicked.connect(self.set_active_folder)
@@ -294,7 +279,17 @@ class MocapFileTree(QtWidgets.QWidget):
         self.setLayout(self.main_layout)
 
     def emit_file_signal(self):
-        self.file_double_clicked.emit(self.get_selected_path())
+        index = self.tree_view.currentIndex()
+        if not self.model.isDir(index):
+            self.file_double_clicked.emit(self.get_selected_path())
+
+    def _set_filter(self):
+        filters = []
+        for filter_string in self.search_line_edit.text().split(","):
+            filter_string = filter_string.replace(" ", "")
+            filters.append("*{}*.fbx".format(filter_string))
+        self.tree_view.expandAll()
+        self.model.setNameFilters(filters)
 
     def set_active_folder(self, folder_path=None):
         if not folder_path:
@@ -341,7 +336,7 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         self.browser_viewport_widget = MocapBrowserViewportWidget(self)
         main_splitter.addWidget(self.browser_file_tree)
         main_splitter.addWidget(self.browser_viewport_widget)
-        main_splitter.setSizes([1, 6])
+        main_splitter.setStretchFactor(1, 6)
 
         # connect signals between widgets
         self.browser_file_tree.file_double_clicked.connect(self.browser_viewport_widget.load_fbx_files)
@@ -366,6 +361,12 @@ def main(refresh=False):
     win.resize(QtCore.QSize(720, 480))
 
     if standalone_app:
+
+        # just gonna leave this debug thing here for now
+        test_folder = r"D:\Google Drive\Maya_Home\Brekel Recordings\SecondAttempt"
+        if os.path.exists(test_folder):
+            win.browser_file_tree.set_active_folder(test_folder)
+        
         ui_utils.standalone_app_window = win
         from .resources import stylesheets
         stylesheets.apply_standalone_stylesheet()

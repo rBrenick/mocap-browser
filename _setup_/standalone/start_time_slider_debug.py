@@ -1,0 +1,2 @@
+import mocap_browser.qt_time_slider
+mocap_browser.qt_time_slider.open_standalone_test_window()
