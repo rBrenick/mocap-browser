@@ -120,17 +120,21 @@ class AnimationViewportWidget(BaseViewportWidget):
         self.update()
 
     def play_next_frame(self):
-        if self.play_active:
-            if self.active_frame >= self.end_frame:
-                self.active_frame = self.start_frame
-            else:
-                self.active_frame += 1
+        if not self.play_active:
+            return
+        
+        if self.active_frame >= self.end_frame:
+            self.active_frame = self.start_frame
+        else:
+            self.active_frame += 1
+        
         self.frame_changed.emit(self.active_frame)
 
     def increment_frame(self, value=1):
-        next_frame = self.active_frame + value
-        self.active_frame = max(self.start_frame, min(next_frame, self.end_frame))
+        target_frame = self.active_frame + value
+        self.active_frame = max(self.start_frame, min(target_frame, self.end_frame))
         self.update()
+        self.frame_changed.emit(self.active_frame)
 
 
 class FBXViewportWidget(AnimationViewportWidget):
@@ -291,7 +295,7 @@ class MocapFileTree(QtWidgets.QWidget):
             folder_path = QtWidgets.QFileDialog.getExistingDirectory(
                 self,
                 "Choose Mocap Folder",
-                dir=self.get_folder()
+                dir=self.get_folder(),
                 )
         if not folder_path:
             return
