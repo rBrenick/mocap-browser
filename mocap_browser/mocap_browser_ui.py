@@ -124,18 +124,26 @@ class AnimationViewportWidget(BaseViewportWidget):
             return
         
         if self.active_frame >= self.end_frame:
-            self.active_frame = self.start_frame
+            self.set_active_frame(self.start_frame)
         else:
-            self.active_frame += 1
-        
-        self.frame_changed.emit(self.active_frame)
-
+            self.set_active_frame(self.active_frame + 1)
+    
     def increment_frame(self, value=1):
         target_frame = self.active_frame + value
-        self.active_frame = max(self.start_frame, min(target_frame, self.end_frame))
+        target_frame = max(self.start_frame, min(target_frame, self.end_frame)) # clamp within timeline
+        self.set_active_frame(target_frame)
+    
+    def go_to_start_frame(self):
+        self.set_active_frame(self.start_frame)
+    
+    def go_to_end_frame(self):
+        self.set_active_frame(self.end_frame)
+    
+    def set_active_frame(self, value):
+        self.active_frame = value
         self.update()
         self.frame_changed.emit(self.active_frame)
-
+        
 
 class FBXViewportWidget(AnimationViewportWidget):
 
@@ -250,6 +258,8 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
         ui_utils.add_hotkey(self, "Right", lambda: self.fbx_viewport.increment_frame(1))
         ui_utils.add_hotkey(self, "Shift+Left", lambda: self.fbx_viewport.increment_frame(-15))
         ui_utils.add_hotkey(self, "Shift+Right", lambda: self.fbx_viewport.increment_frame(15))
+        ui_utils.add_hotkey(self, "Home", self.fbx_viewport.go_to_start_frame)
+        ui_utils.add_hotkey(self, "End", self.fbx_viewport.go_to_end_frame)
         ui_utils.add_hotkey(self, "Space", self.fbx_viewport.toggle_play)
 
     def load_fbx_files(self, fbx_paths=None):
