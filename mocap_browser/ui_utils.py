@@ -33,6 +33,9 @@ def get_app_window():
 
 
 class CoreToolWindow(QtWidgets.QMainWindow):
+
+    win_instances = []
+
     def __init__(self, parent=None):
         if parent is None:
             parent = get_app_window()
@@ -43,6 +46,10 @@ class CoreToolWindow(QtWidgets.QMainWindow):
 
     def main(self, *args, **kwargs):
         self.show()
+
+    def on_close(self):
+        """for easy overloading with maya dockable windows"""
+        pass
 
     #########################################################
     # convenience functions to make a simple button layout
@@ -70,58 +77,60 @@ class CoreToolWindow(QtWidgets.QMainWindow):
             btn.clicked.connect(command)
 
 
-class WindowCache:
-    window_instances = {}
-
-
 if active_dcc_is_maya:
 
-    from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
+    from maya.app.general import mayaMixin
     from maya import OpenMayaUI as omui
     from maya import cmds
 
+    class ToolWindow(mayaMixin.MayaQWidgetDockableMixin, CoreToolWindow):
 
-    class ToolWindow(MayaQWidgetDockableMixin, CoreToolWindow):
+        WORKSPACE_NAMES = []
+
         def __init__(self, parent=None):
             if parent is None:
                 parent = get_app_window()
             super(ToolWindow, self).__init__(parent=parent)
-            self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-
-            class_name = self.__class__.__name__
-            self.setObjectName(class_name)
+            self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
         def main(self, restore=False, refresh=False):
-            object_name = self.objectName()
-
-            if refresh:
-                WindowCache.window_instances.pop(object_name, None)
-
-                workspace_control_name = object_name + "WorkspaceControl"
-                if cmds.workspaceControl(workspace_control_name, q=True, exists=True):
-                    cmds.workspaceControl(workspace_control_name, e=True, close=True)
-                    cmds.deleteUI(workspace_control_name, control=True)
-
             if restore:
                 restored_control = omui.MQtUtil.getCurrentParent()
+                mixin_ptr = omui.MQtUtil.findControl(self.objectName())
+                omui.MQtUtil.addWidgetToMayaLayout(long(mixin_ptr), long(restored_control))
+
+                self.WORKSPACE_NAMES.append(self.parent().objectName())
+                return self
+
+            if refresh:
+                opened_workspaces = list(self.WORKSPACE_NAMES)
+                for workspace_name in opened_workspaces:
+                    try:
+                        remove_workspace(workspace_name)
+                        self.WORKSPACE_NAMES.remove(workspace_name)
+                    except Exception as e:
+                        print(e)
 
             launch_ui_script = "import {module}; {module}.{class_name}().main(restore=True)".format(
                 module=self.__class__.__module__,
-                class_name=self.__class__.__name__
+                class_name=self.__class__.__name__,
             )
 
-            window_instance = WindowCache.window_instances.get(object_name)
-            if not window_instance:
-                window_instance = self
-                WindowCache.window_instances[object_name] = window_instance
+            self.show(dockable=True, height=500, width=700, uiScript=launch_ui_script)
 
-            if restore:
-                mixin_ptr = omui.MQtUtil.findControl(window_instance.objectName())
-                omui.MQtUtil.addWidgetToMayaLayout(long(mixin_ptr), long(restored_control))
-            else:
-                window_instance.show(dockable=True, height=600, width=480, uiScript=launch_ui_script)
+            self.WORKSPACE_NAMES.append(self.parent().objectName())
+            return self
 
-            return window_instance
+        def hideEvent(self, *args):
+            if not self.isVisible():
+                self.on_close()
+            super(ToolWindow, self).hideEvent(*args)
+
+
+    def remove_workspace(workspace_control_name):
+        if cmds.workspaceControl(workspace_control_name, q=True, exists=True):
+            cmds.workspaceControl(workspace_control_name, e=True, close=True)
+            cmds.deleteUI(workspace_control_name, control=True)
 
 else:
     ToolWindow = CoreToolWindow
