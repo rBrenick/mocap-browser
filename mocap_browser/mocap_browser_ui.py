@@ -139,11 +139,37 @@ class AnimationViewportWidget(BaseViewportWidget):
 
 class FBXViewportWidget(AnimationViewportWidget):
 
+    scene_content_updated = QtCore.Signal()
+
     def __init__(self, parent):
         super().__init__(parent)
 
         self.fbx_handlers = []
         self.time = fbx.FbxTime()
+
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasText():
+            e.accept()
+        else:
+            e.ignore()
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasUrls():  # only if file or link is dropped
+            return
+        
+        fbx_paths = []
+        for url in event.mimeData().urls():
+            local_path = url.toLocalFile()
+            if local_path.lower().endswith(".fbx"):
+                fbx_paths.append(local_path)
+
+        if not fbx_paths:
+            QtWidgets.QMessageBox.warning(self, "Invalid Paths", "Could not find any .fbx's in the dropped files")
+            return
+
+        self.load_fbx_files(fbx_paths)
 
     def paintGL(self):
         super().paintGL()
@@ -158,7 +184,7 @@ class FBXViewportWidget(AnimationViewportWidget):
                 self.time,
                 fbx_handler.display_color,
                 )
-            
+    
     def load_fbx_files(self, fbx_file_paths=None):
         if not fbx_file_paths:
             return
@@ -189,6 +215,7 @@ class FBXViewportWidget(AnimationViewportWidget):
         self.start_frame = min(start_times)
         self.end_frame = max(end_times)
         self.active_frame = self.start_frame
+        self.scene_content_updated.emit()
         self.update()
     
     def remove_existing_handlers(self):
@@ -216,6 +243,7 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
         # connect signals
         self.timeline.value_changed.connect(self.fbx_viewport.set_frame)
         self.fbx_viewport.frame_changed.connect(self.timeline.set_value)
+        self.fbx_viewport.scene_content_updated.connect(self.update_timeline_from_loaded_fbxs)
 
         # create hotkeys
         ui_utils.add_hotkey(self, "Left", lambda: self.fbx_viewport.increment_frame(-1))
@@ -226,8 +254,11 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
 
     def load_fbx_files(self, fbx_paths=None):
         self.fbx_viewport.load_fbx_files(fbx_paths)
+
+    def update_timeline_from_loaded_fbxs(self):
         self.timeline.set_minimum(self.fbx_viewport.start_frame)
         self.timeline.set_maximum(self.fbx_viewport.end_frame)
+        self.timeline.set_value(self.fbx_viewport.active_frame)
         self.timeline.reset_selection()
 
 
@@ -329,6 +360,7 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         main_widget = QtWidgets.QWidget()
         main_layout = QtWidgets.QHBoxLayout()
         main_widget.setLayout(main_layout)
+        self.setWindowTitle("Mocap Browser")
 
         main_splitter = QtWidgets.QSplitter()
         self.browser_file_tree = MocapFileTree(self)
