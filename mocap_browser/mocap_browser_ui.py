@@ -34,6 +34,7 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
         self.reset_camera()
 
         ui_utils.add_hotkey(self, "R", self.reset_camera)
+        ui_utils.add_hotkey(self, "F", self.reset_camera)
     
     def reset_camera(self):
         self.main_camera.reset(800, 500, 800)
@@ -41,13 +42,6 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
 
     def initializeGL(self):
         self.qglClearColor(self.background_color)
-
-        GL.glShadeModel(GL.GL_FLAT)
-        GL.glEnable(GL.GL_DEPTH_TEST)
-        GL.glEnable(GL.GL_CULL_FACE)
-        GL.glDisable(GL.GL_LIGHTING)
-        GL.glDepthFunc(GL.GL_LEQUAL)
-        GL.glFrontFace(GL.GL_CCW)
 
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
@@ -62,34 +56,30 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
         GL.glViewport(0, 0, widthInPixels, heightInPixels)
 
     def mousePressEvent(self, event):
-        if int(event.buttons()) != QtCore.Qt.NoButton:
-            self.prev_mouse_x = event.x()
-            self.prev_mouse_y = event.y()
+        self.prev_mouse_x = event.x()
+        self.prev_mouse_y = event.y()
 
     def mouseMoveEvent(self, event):
         """Viewport controls"""
-        if int(event.buttons()) == QtCore.Qt.NoButton:
-            return
-        
         delta_x = event.x() - self.prev_mouse_x
         delta_y = event.y() - self.prev_mouse_y
         mouse_zoom_speed = 3
 
         # Orbit
-        if int(event.buttons()) & QtCore.Qt.LeftButton:
+        if event.buttons() == QtCore.Qt.LeftButton:
             self.main_camera.orbit(self.prev_mouse_x, self.prev_mouse_y, event.x(), event.y())
 
         # Zoom
-        elif int(event.buttons()) & QtCore.Qt.RightButton:
+        elif event.buttons() == QtCore.Qt.RightButton:
             self.main_camera.dollyCameraForward((delta_x + delta_y) * mouse_zoom_speed, False)
 
         # Panning
-        elif int(event.buttons()) & QtCore.Qt.MidButton:
+        elif event.buttons() == QtCore.Qt.MidButton:
             self.main_camera.translateSceneRightAndUp(delta_x, -delta_y)
 
-        self.update()
         self.prev_mouse_x = event.x()
         self.prev_mouse_y = event.y()
+        self.update()
 
     def wheelEvent(self, event):
         zoom_multiplier = 0.5
@@ -97,18 +87,13 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
         self.update()
 
 
-class FBXViewportWidget(BaseViewportWidget):
+class AnimationViewportWidget(BaseViewportWidget):
 
     frame_changed = QtCore.Signal(int)
 
     def __init__(self, parent):
         super().__init__(parent)
 
-        # fbx things
-        self.fbx_handlers = []
-        self.time = fbx.FbxTime()
-
-        # time variables
         self.play_active = False
         self.active_frame = 0
         self.start_frame = 0
@@ -121,6 +106,40 @@ class FBXViewportWidget(BaseViewportWidget):
 
     def timerEvent(self, event):
         self.update()
+
+    def toggle_play(self):
+        self.play_active = not self.play_active
+
+        if self.play_active:
+            self.startTimer(1)
+
+    def set_frame(self, frame):
+        if self.play_active:
+            return
+        self.active_frame = frame
+        self.update()
+
+    def play_next_frame(self):
+        if self.play_active:
+            if self.active_frame >= self.end_frame:
+                self.active_frame = self.start_frame
+            else:
+                self.active_frame += 1
+        self.frame_changed.emit(self.active_frame)
+
+    def increment_frame(self, value=1):
+        next_frame = self.active_frame + value
+        self.active_frame = max(self.start_frame, min(next_frame, self.end_frame))
+        self.update()
+
+
+class FBXViewportWidget(AnimationViewportWidget):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        self.fbx_handlers = []
+        self.time = fbx.FbxTime()
 
     def paintGL(self):
         super().paintGL()
@@ -148,9 +167,10 @@ class FBXViewportWidget(BaseViewportWidget):
         start_times = []
         end_times = []
         for fbx_file in fbx_file_paths:
+
             if not os.path.exists(fbx_file):
                 print(f"Failed to find fbx file: {fbx_file}")
-                return
+                continue
 
             fbx_handler = fbx_utils.FbxHandler()
             fbx_handler.load_scene(fbx_file)
@@ -171,31 +191,6 @@ class FBXViewportWidget(BaseViewportWidget):
         for handler in self.fbx_handlers: # type: fbx_utils.FbxHandler
             handler.unload_scene()
         self.fbx_handlers.clear()
-
-    def toggle_play(self):
-        self.play_active = not self.play_active
-
-        if self.play_active:
-            self.startTimer(1)
-
-    def set_frame(self, frame):
-        if self.play_active:
-            return
-        self.active_frame = frame
-        self.update()
-
-    def play_next_frame(self):
-        if self.play_active:
-            if self.active_frame >= self.end_frame:
-                self.active_frame = self.start_frame
-            else:
-                self.active_frame += 1
-        self.frame_changed.emit(self.active_frame)
-
-    def increment_frame(self, value=1):
-        next_frame = self.active_frame + value
-        self.active_frame = max(self.start_frame, min(next_frame, self.end_frame))
-        self.update()
 
 
 class MocapBrowserViewportWidget(QtWidgets.QWidget):
@@ -225,8 +220,8 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
         ui_utils.add_hotkey(self, "Shift+Right", lambda: self.fbx_viewport.increment_frame(15))
         ui_utils.add_hotkey(self, "Space", self.fbx_viewport.toggle_play)
 
-    def load_fbx_files(self, fbx_path=None):
-        self.fbx_viewport.load_fbx_files(fbx_path)
+    def load_fbx_files(self, fbx_paths=None):
+        self.fbx_viewport.load_fbx_files(fbx_paths)
         self.timeline.set_minimum(self.fbx_viewport.start_frame)
         self.timeline.set_maximum(self.fbx_viewport.end_frame)
         self.timeline.reset_selection()

@@ -10,7 +10,7 @@ class FbxHandler():
         self.display_color = (1.0, 1.0, 1.0)
 
     def load_scene(self, file_path):
-        self.result = FbxCommon.LoadScene(self.manager, self.scene, file_path)
+        FbxCommon.LoadScene(self.manager, self.scene, file_path)
         self.anim_stack = self.scene.GetSrcObject(fbx.FbxCriteria().ObjectType(fbx.FbxAnimStack.ClassId), 0)
         self.anim_layer = self.anim_stack.GetSrcObject(fbx.FbxCriteria().ObjectType(fbx.FbxAnimLayer.ClassId), 0)
         self.is_loaded = True
