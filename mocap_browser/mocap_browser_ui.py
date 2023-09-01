@@ -182,16 +182,29 @@ class FBXViewportWidget(AnimationViewportWidget):
     def paintGL(self):
         super().paintGL()
 
+        GL.glLineWidth(4.0)
+        GL.glBegin(GL.GL_LINES)
         for fbx_handler in self.fbx_handlers: # type: fbx_utils.FbxHandler
             if not fbx_handler.is_loaded:
                 continue
 
             self.time.SetTime(0, 0, 0, self.active_frame)
-            fbx_gl_utils.recursive_draw_fbx_skeleton(
+
+            # get skeleton at current frame
+            skel_points = fbx_gl_utils.recursive_get_fbx_skeleton_positions(
                 fbx_handler.scene.GetRootNode(), 
                 self.time,
                 fbx_handler.display_color,
                 )
+
+            # draw skeleton
+            GL.glColor(*fbx_handler.display_color)
+            for pos_list in skel_points.values():
+                node_pos = pos_list[0]
+                parent_pos = pos_list[1]
+                GL.glVertex(node_pos[0], node_pos[1], node_pos[2])
+                GL.glVertex(parent_pos[0], parent_pos[1], parent_pos[2])
+        GL.glEnd()
     
     def load_fbx_files(self, fbx_file_paths=None):
         if not fbx_file_paths:
