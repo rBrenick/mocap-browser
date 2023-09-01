@@ -220,3 +220,19 @@ def get_random_color():
 
     random_color = colorsys.hls_to_rgb(hue, light, saturation)
     return random_color
+
+
+def recursive_set_checkstate(tree_widget_item, state, widget_names=None):
+    if 0:
+        tree_widget_item = QtWidgets.QTreeWidgetItem()
+
+    if widget_names is None:
+        widget_names = []
+    
+    tree_widget_item.setCheckState(0, state)
+    widget_names.append(tree_widget_item.text(0))
+
+    for child_index in range(tree_widget_item.childCount()):
+        recursive_set_checkstate(tree_widget_item.child(child_index), state, widget_names)
+
+    return widget_names

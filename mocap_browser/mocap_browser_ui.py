@@ -145,15 +145,22 @@ class AnimationViewportWidget(BaseViewportWidget):
         self.frame_changed.emit(self.active_frame)
         
 
+class ViewportSceneDescription(object):
+    def __init__(self):
+        self.transform_hierarchy = {}
+
+
 class FBXViewportWidget(AnimationViewportWidget):
 
-    scene_content_updated = QtCore.Signal()
+    scene_content_updated = QtCore.Signal(ViewportSceneDescription)
 
     def __init__(self, parent):
         super().__init__(parent)
 
         self.fbx_handlers = []
         self.time = fbx.FbxTime()
+
+        self.hidden_nodes = []
 
         self.setAcceptDrops(True)
 
@@ -188,6 +195,8 @@ class FBXViewportWidget(AnimationViewportWidget):
             if not fbx_handler.is_loaded:
                 continue
 
+            hidden_nodes = fbx_handler.hidden_nodes
+
             self.time.SetTime(0, 0, 0, self.active_frame)
 
             # get skeleton at current frame
@@ -199,7 +208,10 @@ class FBXViewportWidget(AnimationViewportWidget):
 
             # draw skeleton
             GL.glColor(*fbx_handler.display_color)
-            for pos_list in skel_points.values():
+            for bone_name, pos_list in skel_points.items():
+                if bone_name in hidden_nodes:
+                    continue
+
                 node_pos = pos_list[0]
                 parent_pos = pos_list[1]
                 GL.glVertex(node_pos[0], node_pos[1], node_pos[2])
@@ -214,6 +226,8 @@ class FBXViewportWidget(AnimationViewportWidget):
 
         if not isinstance(fbx_file_paths, list):
             fbx_file_paths = [fbx_file_paths]
+
+        scene_desc = ViewportSceneDescription()
 
         start_times = []
         end_times = []
@@ -232,17 +246,38 @@ class FBXViewportWidget(AnimationViewportWidget):
             # assign random color to distinguish multiple clips
             if len(fbx_file_paths) > 1:
                 fbx_handler.display_color = ui_utils.get_random_color()
+            
+            # send scene data to tree widget
+            scene_hiearchy = fbx_utils.recursive_get_fbx_skeleton_hierarchy(
+                fbx_handler.scene.GetRootNode(),
+                )
+            scene_desc.transform_hierarchy[fbx_file] = scene_hiearchy
 
         self.start_frame = min(start_times)
         self.end_frame = max(end_times)
         self.active_frame = self.start_frame
-        self.scene_content_updated.emit()
+        self.scene_content_updated.emit(scene_desc)
         self.update()
     
     def remove_existing_handlers(self):
         for handler in self.fbx_handlers: # type: fbx_utils.FbxHandler
             handler.unload_scene()
         self.fbx_handlers.clear()
+    
+    def set_node_visibility(self, fbx_path, node_names, state):
+        for fbx_handler in self.fbx_handlers: # type: fbx_utils.FbxHandler
+            if fbx_handler.file_path != fbx_path:
+                continue
+
+            if state:
+                for node in node_names:
+                    if node in fbx_handler.hidden_nodes:
+                        fbx_handler.hidden_nodes.remove(node)
+            else:
+                for node in node_names:
+                    fbx_handler.hidden_nodes.append(node)
+        
+        self.update()
 
 
 class MocapBrowserViewportWidget(QtWidgets.QWidget):
@@ -278,11 +313,64 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
     def load_fbx_files(self, fbx_paths=None):
         self.fbx_viewport.load_fbx_files(fbx_paths)
 
-    def update_timeline_from_loaded_fbxs(self):
+    def update_timeline_from_loaded_fbxs(self, _):
         self.timeline.set_minimum(self.fbx_viewport.start_frame)
         self.timeline.set_maximum(self.fbx_viewport.end_frame)
         self.timeline.set_value(self.fbx_viewport.active_frame)
         self.timeline.reset_selection()
+
+
+class MocapSkeletonTree(QtWidgets.QWidget):
+
+    set_node_visibility = QtCore.Signal(str, list, bool)
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        self.main_layout = QtWidgets.QVBoxLayout()
+
+        self.tree_widget = QtWidgets.QTreeWidget()
+        self.tree_widget.setColumnCount(1)
+        self.tree_widget.setIndentation(10)
+        self.tree_widget.setHeaderHidden(True)
+        self.tree_widget.itemClicked.connect(self.tree_item_check_changed)
+
+        self.main_layout.addWidget(self.tree_widget)
+        self.main_layout.setContentsMargins(2, 2, 2, 2)
+
+        self.setLayout(self.main_layout)
+    
+    def populate_skeleton_tree(self, viewport_scene):
+        if 0:
+            viewport_scene = ViewportSceneDescription()
+        
+        self.tree_widget.clear()
+        for fbx_file, scene_data in viewport_scene.transform_hierarchy.items():
+            root_widget = QtWidgets.QTreeWidgetItem(self.tree_widget.invisibleRootItem())
+            root_widget.setText(0, os.path.basename(fbx_file))
+            root_widget.setText(1, fbx_file)
+            root_widget.setCheckState(0, QtCore.Qt.CheckState.Checked)
+
+            node_widgets = {}
+            for child_name, parent_name in scene_data.items():
+                parent_widget = node_widgets.get(parent_name, root_widget)
+                widget_item = QtWidgets.QTreeWidgetItem(parent_widget)
+                widget_item.setText(0, child_name)
+                widget_item.setText(1, fbx_file)
+                widget_item.setCheckState(0, QtCore.Qt.CheckState.Checked)
+                node_widgets[child_name] = widget_item
+
+        if len(viewport_scene.transform_hierarchy.keys()) == 1:
+            self.tree_widget.expandAll()
+
+    def tree_item_check_changed(self, widget):
+        if 0:
+            widget = QtWidgets.QTreeWidgetItem()
+
+        fbx_path = widget.text(1)
+        state = widget.checkState(0)
+        node_names = ui_utils.recursive_set_checkstate(widget, state)
+        self.set_node_visibility.emit(fbx_path, node_names, state is QtCore.Qt.CheckState.Checked)
 
 
 class MocapFileTree(QtWidgets.QWidget):
@@ -390,15 +478,21 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         self.setWindowTitle("Mocap Browser")
 
         main_splitter = QtWidgets.QSplitter()
-        self.browser_file_tree = MocapFileTree(self)
-        self.browser_viewport_widget = MocapBrowserViewportWidget(self)
-        main_splitter.addWidget(self.browser_file_tree)
-        main_splitter.addWidget(self.browser_viewport_widget)
-        main_splitter.setStretchFactor(1, 6)
+        self.file_tree = MocapFileTree(self)
+        self.viewport = MocapBrowserViewportWidget(self)
+        self.skeleton_tree = MocapSkeletonTree(self)
+        main_splitter.addWidget(self.file_tree)
+        main_splitter.addWidget(self.viewport)
+        main_splitter.addWidget(self.skeleton_tree)
+        main_splitter.setStretchFactor(0, 0.7)
+        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setSizes([250, 600, 0])
 
         # connect signals between widgets
-        self.browser_file_tree.file_double_clicked.connect(self.browser_viewport_widget.load_fbx_files)
-        self.browser_file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
+        self.file_tree.file_double_clicked.connect(self.viewport.load_fbx_files)
+        self.file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
+        self.viewport.fbx_viewport.scene_content_updated.connect(self.skeleton_tree.populate_skeleton_tree)
+        self.skeleton_tree.set_node_visibility.connect(self.viewport.fbx_viewport.set_node_visibility)
 
         main_layout.addWidget(main_splitter)
         self.setCentralWidget(main_widget)
@@ -410,7 +504,7 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         return ui_utils.build_menu_from_action_list(self.context_menu_actions)
 
     def load_all_selected(self):
-        self.browser_viewport_widget.load_fbx_files(self.browser_file_tree.get_selected_paths())
+        self.viewport.load_fbx_files(self.file_tree.get_selected_paths())
 
     
 def main(refresh=False, active_folder=None):
@@ -424,7 +518,7 @@ def main(refresh=False, active_folder=None):
     
     if active_folder:
         if os.path.exists(active_folder):
-            win.browser_file_tree.set_active_folder(active_folder)
+            win.file_tree.set_active_folder(active_folder)
 
     if standalone_app:
 

@@ -11,7 +11,7 @@ def recursive_get_fbx_skeleton_positions(node, time, parent_pos=None, output_dic
     if node_attribute:
         if node_attribute.GetAttributeType() == SKELETON_NODE_TYPE:
             node_pos = node.EvaluateGlobalTransform(time).GetT()
-            node_name = node.GetInitialName()
+            node_name = node.GetName()
             if parent_pos is not None:
                 output_dict[node_name] = (node_pos, parent_pos)
 
