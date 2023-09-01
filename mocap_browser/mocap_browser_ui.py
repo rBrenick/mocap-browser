@@ -328,8 +328,12 @@ class MocapFileTree(QtWidgets.QWidget):
         for filter_string in self.search_line_edit.text().split(","):
             filter_string = filter_string.replace(" ", "")
             filters.append("*{}*.fbx".format(filter_string))
-        self.tree_view.expandAll()
         self.model.setNameFilters(filters)
+
+        if self.search_line_edit.text():
+            self.tree_view.expandAll()
+        else:
+            self.tree_view.collapseAll()
 
     def set_active_folder(self, folder_path=None):
         if not folder_path:
