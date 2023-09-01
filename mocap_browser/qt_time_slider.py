@@ -224,11 +224,12 @@ class TimeSliderWidget(QtWidgets.QWidget):
                 qp.drawRect(x_start, 0, x_width, h)
 
             # frame lines
-            for frame in range(frame_count):
-                pen = QtGui.QPen(QtGui.QColor(40, 40, 40), 1, QtCore.Qt.SolidLine)
-                qp.setPen(pen)
-                qp.setBrush(QtCore.Qt.NoBrush)
-                qp.drawRect(frame * frame_width_interval, 0, 0, h - 1)
+            if (frame_count * 1.5) < w:
+                for frame in range(frame_count):
+                    pen = QtGui.QPen(QtGui.QColor(40, 40, 40), 1, QtCore.Qt.SolidLine)
+                    qp.setPen(pen)
+                    qp.setBrush(QtCore.Qt.NoBrush)
+                    qp.drawRect(frame * frame_width_interval, 0, 0, h - 1)
             
             if selection_defined:
                 x_start = self._selection_start * frame_width_interval
