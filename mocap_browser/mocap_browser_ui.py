@@ -396,17 +396,21 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         self.browser_viewport_widget.load_fbx_files(self.browser_file_tree.get_selected_paths())
 
     
-def main(refresh=False):
+def main(refresh=False, active_folder=None):
     win = MocapBrowserWindow()
     win.main(refresh=refresh)
     win.resize(QtCore.QSize(720, 480))
 
+    if not active_folder:
+        # just gonna leave this debug thing here for now
+        active_folder = r"D:\Google Drive\Maya_Home\Brekel Recordings\SecondAttempt"
+    
+    if active_folder:
+        if os.path.exists(active_folder):
+            win.browser_file_tree.set_active_folder(active_folder)
+
     if standalone_app:
 
-        # just gonna leave this debug thing here for now
-        test_folder = r"D:\Google Drive\Maya_Home\Brekel Recordings\SecondAttempt"
-        if os.path.exists(test_folder):
-            win.browser_file_tree.set_active_folder(test_folder)
         
         ui_utils.standalone_app_window = win
         from .resources import stylesheets
