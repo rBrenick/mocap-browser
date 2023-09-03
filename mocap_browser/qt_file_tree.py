@@ -1,9 +1,12 @@
-from .ui_utils import QtCore, QtGui, QtWidgets
 import os
+import sys
+import traceback
 
 # Icons
 from . import resources
 from .ui_utils import create_qicon
+
+from .ui_utils import QtCore, QtGui, QtWidgets
 
 # quicker access to properties
 _qt = QtCore.Qt
@@ -30,7 +33,7 @@ class FolderConfig(object):
         # print(file_path)
         pass
     
-    def add_files_to_model(self, add_to_ui_func):
+    def add_files_to_model(self, on_file_found):
         if not os.path.exists(self.dir_path):
             print(f"path not found: {self.dir_path}")
             return
@@ -41,7 +44,7 @@ class FolderConfig(object):
                     if os.path.splitext(file_name)[-1] not in self.file_extensions:
                         continue
                 file_path = os.path.join(dir_path, file_name)
-                add_to_ui_func(file_path, self)
+                on_file_found.emit(file_path, self)
 
 
 class PerforceFolderConfig(FolderConfig):
@@ -51,7 +54,7 @@ class PerforceFolderConfig(FolderConfig):
         self.file_icon = create_qicon(resources.get_image_path("p4_icon"))
         self.folder_icon = create_qicon(resources.get_image_path("p4_folder_icon"))
 
-    def add_files_to_model(self, add_to_ui_func):
+    def add_files_to_model(self, on_file_found):
         import p4cmd
         client = p4cmd.P4Client(self.dir_path)
         for p4file in client.folder_to_p4files(self.dir_path): # type: p4cmd.P4File
@@ -61,7 +64,39 @@ class PerforceFolderConfig(FolderConfig):
                 if os.path.splitext(local_path)[-1] not in self.file_extensions:
                     continue
             
-            add_to_ui_func(local_path, self)
+            on_file_found.emit(local_path, self)
+
+
+# QThread setup yoinked from https://www.pythonguis.com/tutorials/multithreading-pyside-applications-qthreadpool/
+
+class FileConfigWorkerSignals(QtCore.QObject):
+    finished = QtCore.Signal()
+    error = QtCore.Signal(tuple)
+    file_found = QtCore.Signal(str, FolderConfig)
+
+
+class FileConfigWorker(QtCore.QRunnable):
+    def __init__(self, fn, *args, **kwargs):
+        super(FileConfigWorker, self).__init__()
+
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = FileConfigWorkerSignals()
+
+        # Add the callback to our kwargs
+        self.kwargs['on_file_found'] = self.signals.file_found
+
+    @QtCore.Slot()
+    def run(self):
+        try:
+            self.fn(*self.args, **self.kwargs)
+        except:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        finally:
+            self.signals.finished.emit()
 
 
 class QtFileTree(QtWidgets.QTreeView):
@@ -92,6 +127,9 @@ class QtFileTree(QtWidgets.QTreeView):
         self.setDragDropMode(QtWidgets.QAbstractItemView.DragOnly)
         self.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.doubleClicked.connect(self._trigger_double_clicked)
+
+        # populate ui with threads
+        self.threadpool = QtCore.QThreadPool()
     
     def set_folder(self, folder_path, file_exts=None, show_root_folder=False):
         """If you only need one root folder, call this function"""
@@ -112,7 +150,10 @@ class QtFileTree(QtWidgets.QTreeView):
     def add_folder_config(self, folder_config):
         if 0:
             folder_config = FolderConfig()
-        folder_config.add_files_to_model(self._add_path_to_model)
+
+        worker = FileConfigWorker(folder_config.add_files_to_model)
+        worker.signals.file_found.connect(self._add_path_to_model)
+        self.threadpool.start(worker)
     
     def get_selected_file_paths(self):
         file_paths = []
