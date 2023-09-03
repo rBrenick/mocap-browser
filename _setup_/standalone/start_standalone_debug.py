@@ -16,7 +16,7 @@ win.file_tree.set_active_folder(r"D:\Google Drive\Maya_Home\Brekel Recordings\Se
 from mocap_browser import qt_file_tree
 p4_config = qt_file_tree.PerforceFolderConfig(r"C:\Users\Richa\Perforce\LocalWorkspace")
 p4_config.file_extensions = [".blend"]
-win.file_tree.file_tree.add_folder_config(p4_config)
+win.file_tree.tree_view.add_folder_config(p4_config)
 
 # exec
 from mocap_browser.resources import stylesheets
