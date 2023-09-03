@@ -3,6 +3,7 @@ import os
 
 from . import ui_utils
 from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
+from .resources import get_image_path
 
 # Requires FBX SDK
 import fbx, FbxCommon
@@ -15,6 +16,7 @@ from .gl_utils import camera
 from .gl_utils import scene_utils
 
 from .qt_time_slider import TimeSliderWidget
+from .qt_file_tree import QtFileTree, FolderConfig
 
 standalone_app = None
 if not QtWidgets.QApplication.instance():
@@ -373,6 +375,12 @@ class MocapSkeletonTree(QtWidgets.QWidget):
         self.set_node_visibility.emit(fbx_path, node_names, state is QtCore.Qt.CheckState.Checked)
 
 
+class FBXFolderConfig(FolderConfig):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.file_icon = ui_utils.create_qicon(get_image_path("fbx_icon"))
+
+
 class MocapFileTree(QtWidgets.QWidget):
 
     file_double_clicked = QtCore.Signal(str)
@@ -392,20 +400,13 @@ class MocapFileTree(QtWidgets.QWidget):
         self.set_folder_button = QtWidgets.QPushButton("...")
         self.set_folder_button.clicked.connect(self.set_active_folder)
 
-        self.model = QtWidgets.QFileSystemModel()
-        self.model.setFilter(QtCore.QDir.AllDirs | QtCore.QDir.NoDotAndDotDot | QtCore.QDir.AllEntries)
-        self.model.setNameFilters(["*.fbx"])
-        self.model.setNameFilterDisables(False)
+        self.file_tree = QtFileTree()
+        self.file_tree.setHeaderHidden(True)
+        self.file_tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-        self.tree_view = QtWidgets.QTreeView()
-        self.tree_view.setSelectionMode(QtWidgets.QTreeView.ExtendedSelection)
-        self.tree_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.tree_view.setModel(self.model)
-        self.tree_view.hideColumn(1)
-        self.tree_view.hideColumn(2)
-        self.tree_view.hideColumn(3)
-        self.tree_view.setHeaderHidden(True)
-        self.tree_view.doubleClicked.connect(self.emit_file_signal)
+        # tree config
+        self.file_tree.default_folder_config_cls = FBXFolderConfig
+        self.file_tree.file_double_clicked.connect(self.file_double_clicked)
 
         self.main_layout = QtWidgets.QVBoxLayout()
         file_line_layout = QtWidgets.QHBoxLayout()
@@ -414,27 +415,13 @@ class MocapFileTree(QtWidgets.QWidget):
 
         self.main_layout.addLayout(file_line_layout)
         self.main_layout.addWidget(self.search_line_edit)
-        self.main_layout.addWidget(self.tree_view)
+        self.main_layout.addWidget(self.file_tree)
         self.main_layout.setContentsMargins(2, 2, 2, 2)
 
         self.setLayout(self.main_layout)
 
-    def emit_file_signal(self):
-        index = self.tree_view.currentIndex()
-        if not self.model.isDir(index):
-            self.file_double_clicked.emit(self.get_selected_path())
-
     def _set_filter(self):
-        filters = []
-        for filter_string in self.search_line_edit.text().split(","):
-            filter_string = filter_string.replace(" ", "")
-            filters.append("*{}*.fbx".format(filter_string))
-        self.model.setNameFilters(filters)
-
-        if self.search_line_edit.text():
-            self.tree_view.expandAll()
-        else:
-            self.tree_view.collapseAll()
+        self.file_tree.set_filter(self.search_line_edit.text())
 
     def set_active_folder(self, folder_path=None):
         if not folder_path:
@@ -447,25 +434,15 @@ class MocapFileTree(QtWidgets.QWidget):
             return
         
         self._set_folder(folder_path)
-            
-    def get_selected_path(self):
-        index = self.tree_view.currentIndex()
-        file_path = self.model.filePath(index)
-        return file_path.replace("\\", "/")
-            
+    
     def get_selected_paths(self):
-        file_paths = []
-        for index in self.tree_view.selectedIndexes():
-            file_path = self.model.filePath(index).replace("\\", "/")
-            file_paths.append(file_path)
-        return file_paths
+        return self.file_tree.get_selected_file_paths()
 
     def get_folder(self):
         return self.folder_path.text()
 
     def _set_folder(self, folder_path):
-        self.model.setRootPath(folder_path)
-        self.tree_view.setRootIndex(self.model.index(folder_path))
+        self.file_tree.set_folder(folder_path, file_exts=[".fbx"])
         self.folder_path.setText(folder_path)
 
 
@@ -490,7 +467,7 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
 
         # connect signals between widgets
         self.file_tree.file_double_clicked.connect(self.viewport.load_fbx_files)
-        self.file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
+        self.file_tree.file_tree.customContextMenuRequested.connect(self.context_menu)
         self.viewport.fbx_viewport.scene_content_updated.connect(self.skeleton_tree.populate_skeleton_tree)
         self.skeleton_tree.set_node_visibility.connect(self.viewport.fbx_viewport.set_node_visibility)
 
@@ -511,18 +488,12 @@ def main(refresh=False, active_folder=None):
     win = MocapBrowserWindow()
     win.main(refresh=refresh)
     win.resize(QtCore.QSize(720, 480))
-
-    if not active_folder:
-        # just gonna leave this debug thing here for now
-        active_folder = r"D:\Google Drive\Maya_Home\Brekel Recordings\SecondAttempt"
     
     if active_folder:
         if os.path.exists(active_folder):
             win.file_tree.set_active_folder(active_folder)
 
     if standalone_app:
-
-        
         ui_utils.standalone_app_window = win
         from .resources import stylesheets
         stylesheets.apply_standalone_stylesheet()

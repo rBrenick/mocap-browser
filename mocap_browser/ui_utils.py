@@ -236,3 +236,14 @@ def recursive_set_checkstate(tree_widget_item, state, widget_names=None):
         recursive_set_checkstate(tree_widget_item.child(child_index), state, widget_names)
 
     return widget_names
+
+
+def create_qicon(icon_path):
+    icon_path = icon_path.replace("\\", "/")
+    if icon_path.startswith(":"):
+        if icon_path.endswith(".svg"):
+            return QtGui.QIcon(QtGui.QPixmap(icon_path))
+        else:
+            return QtGui.QIcon(icon_path)
+
+    return QtGui.QIcon(icon_path)

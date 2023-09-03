@@ -1,0 +1,2 @@
+import mocap_browser.qt_file_tree
+mocap_browser.qt_file_tree.open_standalone_test_window()

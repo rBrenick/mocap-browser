@@ -2,10 +2,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Standalone Launch",
+            "name": "Standalone",
             "type": "python",
             "request": "launch",
             "program": "D:/git/mocap-browser/_setup_/standalone/start_standalone.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Standalone Debug",
+            "type": "python",
+            "request": "launch",
+            "program": "D:/git/mocap-browser/_setup_/standalone/start_standalone_debug.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -14,6 +22,14 @@
             "type": "python",
             "request": "launch",
             "program": "D:/git/mocap-browser/_setup_/standalone/start_time_slider_debug.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "FileTree",
+            "type": "python",
+            "request": "launch",
+            "program": "D:/git/mocap-browser/_setup_/standalone/start_file_tree_debug.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }
