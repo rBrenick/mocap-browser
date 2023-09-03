@@ -1,5 +1,6 @@
-import sys
 import os
+import sys
+import subprocess
 
 from . import ui_utils
 from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
@@ -208,6 +209,7 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         self.setCentralWidget(main_widget)
         self.context_menu_actions = [
             {"Load all selected": self.load_all_selected},
+            {"Show in Explorer": self.show_in_explorer},
         ]
 
     def context_menu(self):
@@ -215,6 +217,12 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
 
     def load_all_selected(self):
         self.viewport.load_fbx_files(self.file_tree.get_selected_paths())
+
+    def show_in_explorer(self):
+        for path in self.file_tree.get_selected_paths():
+            windows_path = f'"{path}"'.replace('/', '\\')
+            print(windows_path)
+            subprocess.Popen(f'explorer /select, {windows_path}')
 
     
 def main(refresh=False, active_folder=None):
