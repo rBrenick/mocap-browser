@@ -65,6 +65,11 @@ class PerforceFolderConfig(FolderConfig):
                     continue
             
             on_file_found.emit(local_path, self)
+    
+    def file_double_clicked(self, file_path):
+        import p4cmd
+        client = p4cmd.P4Client(self.dir_path)
+        client.sync_files([file_path])
 
 
 # QThread setup yoinked from https://www.pythonguis.com/tutorials/multithreading-pyside-applications-qthreadpool/
@@ -119,6 +124,7 @@ class QtFileTree(QtWidgets.QTreeView):
         self._model_folders = {}
         self.model.setHorizontalHeaderLabels(self.header_labels)
 
+        self.header().setSortIndicator(0, QtCore.Qt.SortOrder.AscendingOrder)
         self.setSelectionMode(QtWidgets.QListView.ExtendedSelection)
         self.setAlternatingRowColors(True)
         self.setDragEnabled(True)
@@ -198,7 +204,8 @@ class QtFileTree(QtWidgets.QTreeView):
             token_full_path = os.path.join(root_dir_path, token_rel_real_path)
 
             # an Item for this folder has already been created
-            existing_folder_item = self._model_folders.get(token_rel_display_path)
+            case_insensitive_folder = token_rel_display_path.lower()
+            existing_folder_item = self._model_folders.get(case_insensitive_folder)
             if existing_folder_item is not None:
                 parent_item = existing_folder_item
             else:
@@ -218,7 +225,7 @@ class QtFileTree(QtWidgets.QTreeView):
 
                 parent_item.appendRow(new_folder_item)
                 parent_item = new_folder_item
-                self._model_folders[token_rel_display_path] = new_folder_item
+                self._model_folders[case_insensitive_folder] = new_folder_item
 
         item = FileTreeModelItem(file_path, folder_config)
         path_data = PathData(
