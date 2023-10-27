@@ -5,6 +5,7 @@ import subprocess
 from . import ui_utils
 from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
 from .resources import get_image_path
+from .mocap_browser_system import dcc
 
 # Requires PyOpenGL and the Python FBX SDK
 from .qt_time_slider import TimeSliderWidget
@@ -212,6 +213,9 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
             {"Show in Explorer": self.show_in_explorer},
         ]
 
+        for folder_config in dcc.get_default_folder_configs():
+            self.file_tree.tree_view.add_folder_config(folder_config)
+
     def context_menu(self):
         return ui_utils.build_menu_from_action_list(self.context_menu_actions)
 
@@ -221,7 +225,6 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
     def show_in_explorer(self):
         for path in self.file_tree.get_selected_paths():
             windows_path = f'"{path}"'.replace('/', '\\')
-            print(windows_path)
             subprocess.Popen(f'explorer /select, {windows_path}')
 
     
