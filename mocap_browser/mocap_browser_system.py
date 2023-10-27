@@ -3,7 +3,7 @@ import sys
 import traceback
 import importlib
 
-from . import mocap_brower_constants as k
+from . import mocap_browser_constants as k
 from . import mocap_browser_logger
 
 log = mocap_browser_logger.get_logger()

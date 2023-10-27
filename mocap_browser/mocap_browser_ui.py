@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import functools
 
 from . import ui_utils
 from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
@@ -213,6 +214,16 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
             {"Show in Explorer": self.show_in_explorer},
         ]
 
+        # pass the selected file paths to the custom right click actions
+        for tree_right_click_action in dcc.get_tree_right_click_actions():
+            for action_title, action_func in tree_right_click_action.items():
+                func_with_files = functools.partial(self._trigger_right_click_action, action_func)
+                self.context_menu_actions.append(
+                    {action_title: func_with_files}
+                )
+
+        self.file_tree.tree_view.default_expand_depth = dcc.get_default_expand_depth()
+
         for folder_config in dcc.get_default_folder_configs():
             self.file_tree.tree_view.add_folder_config(folder_config)
 
@@ -221,6 +232,9 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
 
     def load_all_selected(self):
         self.viewport.load_fbx_files(self.file_tree.get_selected_paths())
+
+    def _trigger_right_click_action(self, func):
+        return func(self.file_tree.get_selected_paths())
 
     def show_in_explorer(self):
         for path in self.file_tree.get_selected_paths():

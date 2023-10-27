@@ -150,16 +150,18 @@ class QtFileTree(QtWidgets.QTreeView):
         
         self.add_folder_config(folder_config)
 
-        if self.default_expand_depth is not None:
-            self.expandToDepth(self.default_expand_depth)
-    
     def add_folder_config(self, folder_config):
         if 0:
             folder_config = FolderConfig()
 
         worker = FileConfigWorker(folder_config.add_files_to_model)
         worker.signals.file_found.connect(self._add_path_to_model)
+        worker.signals.finished.connect(self._expand_to_default_depth)
         self.threadpool.start(worker)
+
+    def _expand_to_default_depth(self):
+        if self.default_expand_depth is not None:
+            self.expandToDepth(self.default_expand_depth)
     
     def get_selected_file_paths(self):
         file_paths = []
