@@ -1,6 +1,10 @@
 from .gl_utils.scene_utils import  draw_locator, draw_line
-import FbxCommon
-SKELETON_NODE_TYPE = FbxCommon.FbxNodeAttribute.eSkeleton
+import fbx
+
+try:
+    SKELETON_NODE_TYPE = fbx.FbxNodeAttribute.EType.eSkeleton
+except AttributeError:
+    SKELETON_NODE_TYPE = fbx.FbxNodeAttribute.eSkeleton
 
 def recursive_get_fbx_skeleton_positions(node, time, parent_pos=None, output_dict=None):
     if output_dict is None:
