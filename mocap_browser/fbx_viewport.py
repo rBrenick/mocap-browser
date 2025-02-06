@@ -7,7 +7,7 @@ from .ui_utils import QtCore, QtWidgets
 from OpenGL import GL
 
 # Requires FBX SDK
-import fbx, FbxCommon
+import fbx
 from . import fbx_utils
 from . import fbx_gl_utils
 
@@ -68,7 +68,7 @@ class FBXViewportWidget(AnimationViewportWidget):
 
             hidden_nodes = fbx_handler.hidden_nodes
 
-            self.time.SetTime(0, 0, 0, self.active_frame)
+            self.time.SetTime(0, 0, 0, int(self.active_frame))
 
             # get skeleton at current frame
             skel_points = fbx_gl_utils.recursive_get_fbx_skeleton_positions(
