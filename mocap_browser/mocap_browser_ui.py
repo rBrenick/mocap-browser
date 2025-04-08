@@ -137,7 +137,7 @@ class MocapFileTree(QtWidgets.QWidget):
         self.set_folder_button.clicked.connect(self.set_active_folder)
 
         self.tree_view = QtFileTree()
-        self.tree_view.setHeaderHidden(True)
+        self.tree_view.header().setSortIndicator(0, QtCore.Qt.SortOrder.DescendingOrder)
         self.tree_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
         # tree config
