@@ -10,7 +10,12 @@ def reload_modules():
     else:
         from imp import reload
     
-    from . import fbx_utils
+    # only present when the Python FBX SDK is installed, see mocap_browser_ui
+    try:
+        from . import fbx_utils
+    except ImportError:
+        fbx_utils = None
+
     from .gl_utils import scene_utils
     from . import mocap_browser_constants
     from . import mocap_browser_logger
@@ -18,7 +23,8 @@ def reload_modules():
     from . import mocap_browser_dcc_maya
     from . import mocap_browser_system
     from . import mocap_browser_ui
-    reload(fbx_utils)
+    if fbx_utils is not None:
+        reload(fbx_utils)
     reload(scene_utils)
     reload(mocap_browser_constants)
     reload(mocap_browser_logger)

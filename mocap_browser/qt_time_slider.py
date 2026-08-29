@@ -1,4 +1,4 @@
-from .ui_utils import QtWidgets, QtCore, QtGui, ToolWindow
+from .ui_utils import QtWidgets, QtCore, QtGui, ToolWindow, wheel_delta
 
 
 class TimeSliderWidget(QtWidgets.QWidget):
@@ -128,7 +128,7 @@ class TimeSliderWidget(QtWidgets.QWidget):
         if not self._scroll_trigger:
             return
         self.set_multiplier()
-        new_value = self._value + ((event.delta() / 120) * self._multiplier)
+        new_value = self._value + ((wheel_delta(event) / 120) * self._multiplier)
         self.set_value(new_value)
 
     def keyPressEvent(self, event):
