@@ -87,8 +87,8 @@ class BaseViewportWidget(GLWidgetBase):
         elif event.buttons() == QtCore.Qt.RightButton:
             self.main_camera.dollyCameraForward((delta_x + delta_y) * mouse_zoom_speed, False)
 
-        # Panning
-        elif event.buttons() == QtCore.Qt.MidButton:
+        # Panning (Qt.MidButton was a deprecated alias for MiddleButton, gone in Qt6)
+        elif event.buttons() == QtCore.Qt.MiddleButton:
             self.main_camera.translateSceneRightAndUp(delta_x, -delta_y)
 
         self.prev_mouse_x = event.x()

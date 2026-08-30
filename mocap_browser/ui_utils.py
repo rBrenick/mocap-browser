@@ -227,6 +227,13 @@ def wheel_delta(event):
     return event.angleDelta().y()
 
 
+def text_width(font_metrics, text):
+    """QFontMetrics.width() was removed in Qt6, horizontalAdvance() replaces it."""
+    if hasattr(font_metrics, "horizontalAdvance"):
+        return font_metrics.horizontalAdvance(text)
+    return font_metrics.width(text)
+
+
 def get_random_color():
     import random
     import colorsys
