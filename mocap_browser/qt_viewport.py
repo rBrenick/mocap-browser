@@ -1,6 +1,6 @@
 
 from . import ui_utils
-from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
+from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL, QT_BINDING
 
 # Requires PyOpenGL
 from OpenGL import GL
@@ -8,10 +8,36 @@ from .gl_utils import camera
 from .gl_utils import scene_utils
 
 
-class BaseViewportWidget(QtOpenGL.QGLWidget):
+# Qt6 removed QGLWidget, QGLFormat and QGL. QOpenGLWidget replaces QGLWidget but lives in
+# its own module, multisampling is requested through QSurfaceFormat, and the qglClearColor
+# convenience method is gone.
+if QT_BINDING == "PySide6":
+    from PySide6.QtOpenGLWidgets import QOpenGLWidget as GLWidgetBase
+
+    def _init_gl_widget(widget, parent):
+        GLWidgetBase.__init__(widget, parent)
+        surface_format = QtGui.QSurfaceFormat()
+        surface_format.setSamples(4)  # what QGL.SampleBuffers asked for
+        widget.setFormat(surface_format)
+
+    def _set_clear_color(widget, color):
+        GL.glClearColor(color.redF(), color.greenF(), color.blueF(), color.alphaF())
+
+else:
+    GLWidgetBase = QtOpenGL.QGLWidget
+
+    def _init_gl_widget(widget, parent):
+        GLWidgetBase.__init__(
+            widget, QtOpenGL.QGLFormat(QtOpenGL.QGL.SampleBuffers), parent)
+
+    def _set_clear_color(widget, color):
+        widget.qglClearColor(color)
+
+
+class BaseViewportWidget(GLWidgetBase):
     """Super Basic 3D Viewport with navigation controls"""
     def __init__(self, parent=None):
-        QtOpenGL.QGLWidget.__init__(self, QtOpenGL.QGLFormat(QtOpenGL.QGL.SampleBuffers), parent)
+        _init_gl_widget(self, parent)
 
         # viewport control things
         self.background_color = QtGui.QColor.fromRgb(80, 120, 150, 0.0)
@@ -29,7 +55,7 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
         self.update()
 
     def initializeGL(self):
-        self.qglClearColor(self.background_color)
+        _set_clear_color(self, self.background_color)
 
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
@@ -61,8 +87,8 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
         elif event.buttons() == QtCore.Qt.RightButton:
             self.main_camera.dollyCameraForward((delta_x + delta_y) * mouse_zoom_speed, False)
 
-        # Panning
-        elif event.buttons() == QtCore.Qt.MidButton:
+        # Panning (Qt.MidButton was a deprecated alias for MiddleButton, gone in Qt6)
+        elif event.buttons() == QtCore.Qt.MiddleButton:
             self.main_camera.translateSceneRightAndUp(delta_x, -delta_y)
 
         self.prev_mouse_x = event.x()
@@ -71,7 +97,7 @@ class BaseViewportWidget(QtOpenGL.QGLWidget):
 
     def wheelEvent(self, event):
         zoom_multiplier = 0.5
-        self.main_camera.dollyCameraForward(event.delta() * zoom_multiplier, False)
+        self.main_camera.dollyCameraForward(ui_utils.wheel_delta(event) * zoom_multiplier, False)
         self.update()
 
 

@@ -2,8 +2,18 @@ import os
 import sys
 from functools import partial
 
-from PySide2 import QtCore, QtWidgets, QtGui, QtOpenGL
-from shiboken2 import wrapInstance
+try:  # Qt6 / PySide6 (Maya 2025 and newer)
+    from PySide6 import QtCore, QtWidgets, QtGui, QtOpenGL
+    from PySide6.QtGui import QAction, QActionGroup
+    from shiboken6 import wrapInstance
+
+    QT_BINDING = "PySide6"
+except ImportError:  # Qt5 / PySide2 (Maya 2024 and older)
+    from PySide2 import QtCore, QtWidgets, QtGui, QtOpenGL
+    from PySide2.QtWidgets import QAction, QActionGroup
+    from shiboken2 import wrapInstance
+
+    QT_BINDING = "PySide2"
 
 if sys.version_info.major >= 3:
     long = int
@@ -161,9 +171,9 @@ def build_menu_from_action_list(actions, menu=None, is_sub_menu=False):
                 if not item_to_check:
                     item_to_check = default_choice
 
-                grp = QtWidgets.QActionGroup(menu)
+                grp = QActionGroup(menu)
                 for choice_key in choices:
-                    action = QtWidgets.QAction(choice_key, menu)
+                    action = QAction(choice_key, menu)
                     action.setCheckable(True)
 
                     if choice_key == item_to_check:
@@ -204,10 +214,24 @@ def set_settings_value(settings_obj, key, value, post_set_command=None):
 
 
 def add_hotkey(owner, shortcut, command):
-    action = QtWidgets.QAction(owner)
+    action = QAction(owner)
     action.triggered.connect(command)
     action.setShortcut(shortcut)
     owner.addAction(action)
+
+
+def wheel_delta(event):
+    """QWheelEvent.delta() was removed in Qt6, angleDelta() replaces it."""
+    if hasattr(event, "delta"):
+        return event.delta()
+    return event.angleDelta().y()
+
+
+def text_width(font_metrics, text):
+    """QFontMetrics.width() was removed in Qt6, horizontalAdvance() replaces it."""
+    if hasattr(font_metrics, "horizontalAdvance"):
+        return font_metrics.horizontalAdvance(text)
+    return font_metrics.width(text)
 
 
 def get_random_color():

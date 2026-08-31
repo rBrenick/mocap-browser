@@ -1,4 +1,4 @@
-from .ui_utils import QtWidgets, QtCore, QtGui, ToolWindow
+from .ui_utils import QtWidgets, QtCore, QtGui, ToolWindow, wheel_delta, text_width
 
 
 class TimeSliderWidget(QtWidgets.QWidget):
@@ -128,7 +128,7 @@ class TimeSliderWidget(QtWidgets.QWidget):
         if not self._scroll_trigger:
             return
         self.set_multiplier()
-        new_value = self._value + ((event.delta() / 120) * self._multiplier)
+        new_value = self._value + ((wheel_delta(event) / 120) * self._multiplier)
         self.set_value(new_value)
 
     def keyPressEvent(self, event):
@@ -190,7 +190,7 @@ class TimeSliderWidget(QtWidgets.QWidget):
 
         # resize text to scale with widget
         h_factor = float(slider_height) / qp.fontMetrics().height()
-        w_factor = float(w) / qp.fontMetrics().width(self._display_value)
+        w_factor = float(w) / text_width(qp.fontMetrics(), self._display_value)
         factor = min(h_factor, w_factor)  # the smaller value determines max text size
         font.setPointSizeF(font.pointSizeF() * factor)
         qp.setFont(font)

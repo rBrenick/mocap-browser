@@ -11,6 +11,42 @@ from .ui_utils import QtCore, QtGui, QtWidgets
 # quicker access to properties
 _qt = QtCore.Qt
 
+# Qt6 removed QRegExp and with it QSortFilterProxyModel.filterRegExp/setFilterRegExp.
+# QRegularExpression replaces it but spells the same operations differently.
+_HAS_QREGEXP = hasattr(QtCore, "QRegExp")
+
+
+def _make_filter_regex(text):
+    if _HAS_QREGEXP:
+        return QtCore.QRegExp(text, _qt.CaseInsensitive, QtCore.QRegExp.RegExp)
+    return QtCore.QRegularExpression(
+        text or "", QtCore.QRegularExpression.CaseInsensitiveOption)
+
+
+def _set_filter_regex(proxy, regex):
+    if _HAS_QREGEXP:
+        proxy.setFilterRegExp(regex)
+    else:
+        proxy.setFilterRegularExpression(regex)
+
+
+def _active_filter_regex(proxy):
+    if _HAS_QREGEXP:
+        return proxy.filterRegExp()
+    return proxy.filterRegularExpression()
+
+
+def _regex_is_empty(regex):
+    if _HAS_QREGEXP:
+        return regex.isEmpty()
+    return not regex.pattern()
+
+
+def _regex_matches(regex, text):
+    if _HAS_QREGEXP:
+        return regex.indexIn(text) != -1
+    return regex.match(text).hasMatch()
+
 
 class FolderConfig(object):
     def __init__(self, root_folder):
@@ -252,8 +288,7 @@ class QtFileTree(QtWidgets.QTreeView):
             self.file_double_clicked.emit(tree_item.file_path)
 
     def set_filter(self, text=None):
-        search = QtCore.QRegExp(text, QtCore.Qt.CaseInsensitive, QtCore.QRegExp.RegExp)
-        self.proxy.setFilterRegExp(search)
+        _set_filter_regex(self.proxy, _make_filter_regex(text))
         if not text:
             if self.default_expand_depth is None:
                 self.collapseAll()
@@ -306,8 +341,8 @@ class FileTreeSortProxyModel(QtCore.QSortFilterProxyModel):
         return result
 
     def filterAcceptsRow(self, source_row, source_parent):
-        filter_regex = self.filterRegExp()
-        if filter_regex.isEmpty():
+        filter_regex = _active_filter_regex(self)
+        if _regex_is_empty(filter_regex):
             return True
 
         r = source_row  # type: int
@@ -320,10 +355,7 @@ class FileTreeSortProxyModel(QtCore.QSortFilterProxyModel):
             if self.filterAcceptsRow(i, model_index):
                 return True
 
-        result = filter_regex.indexIn(path_data.relative_path)
-        if result == -1:
-            return False
-        return True
+        return _regex_matches(filter_regex, path_data.relative_path)
 
 
 class PathData(object):

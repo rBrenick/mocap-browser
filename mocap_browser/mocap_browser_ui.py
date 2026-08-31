@@ -8,10 +8,23 @@ from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
 from .resources import get_image_path
 from .mocap_browser_system import dcc
 
-# Requires PyOpenGL and the Python FBX SDK
 from .qt_time_slider import TimeSliderWidget
 from .qt_file_tree import QtFileTree, FolderConfig
-from .fbx_viewport import FBXViewportWidget, ViewportSceneDescription
+
+# The 3D preview needs PyOpenGL and the Autodesk Python FBX SDK. The FBX SDK ships no
+# bindings for Python 3.11+, which is what Maya 2025 and newer run on, so rather than
+# refusing to open at all we fall back to a message where the viewport would go. The file
+# tree, its right-click actions and everything else keep working.
+try:
+    from .fbx_viewport import FBXViewportWidget, ViewportSceneDescription
+    FBX_VIEWPORT_ERROR = None
+except ImportError as exc:
+    FBXViewportWidget = None
+    FBX_VIEWPORT_ERROR = str(exc)
+
+    class ViewportSceneDescription(object):
+        def __init__(self):
+            self.transform_hierarchy = {}
 
 standalone_app = None
 if not QtWidgets.QApplication.instance():
@@ -24,6 +37,19 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
 
         self.main_layout = QtWidgets.QVBoxLayout()
         self.setLayout(self.main_layout)
+
+        if FBXViewportWidget is None:
+            self.fbx_viewport = None
+            self.timeline = None
+            message = QtWidgets.QLabel(
+                "3D preview unavailable\n\n{}\n\n"
+                "The file tree and its right-click actions still work.".format(
+                    FBX_VIEWPORT_ERROR)
+            )
+            message.setAlignment(QtCore.Qt.AlignCenter)
+            message.setWordWrap(True)
+            self.main_layout.addWidget(message)
+            return
 
         # OpenGL Widget
         self.fbx_viewport = FBXViewportWidget(self)
@@ -49,6 +75,8 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
         ui_utils.add_hotkey(self, "Space", self.fbx_viewport.toggle_play)
 
     def load_fbx_files(self, fbx_paths=None):
+        if self.fbx_viewport is None:
+            return
         self.fbx_viewport.load_fbx_files(fbx_paths)
 
     def update_timeline_from_loaded_fbxs(self, _):
@@ -204,8 +232,9 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         # connect signals between widgets
         self.file_tree.file_double_clicked.connect(self.viewport.load_fbx_files)
         self.file_tree.tree_view.customContextMenuRequested.connect(self.context_menu)
-        self.viewport.fbx_viewport.scene_content_updated.connect(self.skeleton_tree.populate_skeleton_tree)
-        self.skeleton_tree.set_node_visibility.connect(self.viewport.fbx_viewport.set_node_visibility)
+        if self.viewport.fbx_viewport is not None:
+            self.viewport.fbx_viewport.scene_content_updated.connect(self.skeleton_tree.populate_skeleton_tree)
+            self.skeleton_tree.set_node_visibility.connect(self.viewport.fbx_viewport.set_node_visibility)
 
         main_layout.addWidget(main_splitter)
         self.setCentralWidget(main_widget)
