@@ -7,6 +7,7 @@ from . import ui_utils
 from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
 from .resources import get_image_path
 from .mocap_browser_system import dcc
+from .mocap_browser_logger import get_logger
 
 from .qt_time_slider import TimeSliderWidget
 from .qt_file_tree import QtFileTree, FolderConfig
@@ -25,6 +26,8 @@ except ImportError as exc:
     class ViewportSceneDescription(object):
         def __init__(self):
             self.transform_hierarchy = {}
+
+log = get_logger()
 
 standalone_app = None
 if not QtWidgets.QApplication.instance():
@@ -78,6 +81,11 @@ class MocapBrowserViewportWidget(QtWidgets.QWidget):
         if self.fbx_viewport is None:
             return
         self.fbx_viewport.load_fbx_files(fbx_paths)
+
+    def set_preview_mesh(self, fbx_path, warn=True):
+        if self.fbx_viewport is None:
+            return False
+        return self.fbx_viewport.set_preview_mesh(fbx_path, warn=warn)
 
     def update_timeline_from_loaded_fbxs(self, _):
         self.timeline.set_minimum(self.fbx_viewport.start_frame)
@@ -240,8 +248,13 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         self.setCentralWidget(main_widget)
         self.context_menu_actions = [
             {"Load all selected": self.load_all_selected},
+            {"Use as preview mesh": self.use_selected_as_preview_mesh},
             {"Show in Explorer": self.show_in_explorer},
         ]
+
+        self.settings = QtCore.QSettings("mocap_browser", "MocapBrowser")
+        self.build_display_menu()
+        self.restore_display_settings()
 
         # pass the selected file paths to the custom right click actions
         for tree_right_click_action in dcc.get_tree_right_click_actions():
@@ -258,6 +271,113 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
 
     def context_menu(self):
         return ui_utils.build_menu_from_action_list(self.context_menu_actions)
+
+    #########################################################
+    # Display menu
+
+    def build_display_menu(self):
+        """Menu for the skinned mesh preview. Disabled outright when there is no viewport."""
+        menu = self.menuBar().addMenu("Display")
+
+        # Not a control, just a reminder of which mesh is in use; kept current by
+        # refresh_preview_mesh_label.
+        self.preview_mesh_label = menu.addAction("No preview mesh")
+        self.preview_mesh_label.setEnabled(False)
+
+        menu.addAction("Set preview mesh...", self.browse_for_preview_mesh)
+        menu.addAction("Clear preview mesh", self.clear_preview_mesh)
+        menu.addSeparator()
+
+        self.show_meshes_action = menu.addAction("Show mesh")
+        self.show_meshes_action.setCheckable(True)
+        self.show_meshes_action.setChecked(True)
+        self.show_meshes_action.toggled.connect(self.set_show_meshes)
+
+        self.show_skeleton_action = menu.addAction("Show skeleton")
+        self.show_skeleton_action.setCheckable(True)
+        self.show_skeleton_action.setChecked(True)
+        self.show_skeleton_action.toggled.connect(self.set_show_skeleton)
+
+        menu.setEnabled(self.viewport.fbx_viewport is not None)
+
+    def refresh_preview_mesh_label(self, preview_mesh_path):
+        if preview_mesh_path:
+            self.preview_mesh_label.setText(os.path.basename(preview_mesh_path))
+        else:
+            self.preview_mesh_label.setText("No preview mesh")
+
+        self.settings.setValue("preview_mesh", preview_mesh_path)
+        self.warn_about_unbound_bones()
+
+    def warn_about_unbound_bones(self):
+        """A preview mesh built for a different skeleton half-poses and looks broken."""
+        viewport = self.viewport.fbx_viewport
+        if viewport is None or not viewport.preview_meshes:
+            return
+
+        missing = viewport.get_unbound_bone_report()
+        if not missing:
+            return
+
+        log.warning(
+            "Preview mesh has {} bone(s) the loaded clip does not: {}".format(
+                len(missing), ", ".join(missing[:10])))
+
+    def browse_for_preview_mesh(self):
+        if self.viewport.fbx_viewport is None:
+            return
+
+        start_folder = os.path.dirname(
+            self.viewport.fbx_viewport.preview_mesh_path) or self.file_tree.get_folder()
+
+        mesh_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Choose Preview Mesh", start_folder, "FBX Files (*.fbx)")
+
+        if mesh_path:
+            self.viewport.set_preview_mesh(mesh_path)
+
+    def use_selected_as_preview_mesh(self):
+        selected_paths = self.file_tree.get_selected_paths()
+        if not selected_paths:
+            return
+        self.viewport.set_preview_mesh(selected_paths[0])
+
+    def clear_preview_mesh(self):
+        if self.viewport.fbx_viewport is not None:
+            self.viewport.fbx_viewport.clear_preview_mesh()
+
+    def set_show_meshes(self, state):
+        self.settings.setValue("show_meshes", state)
+        if self.viewport.fbx_viewport is not None:
+            self.viewport.fbx_viewport.set_show_meshes(state)
+
+    def set_show_skeleton(self, state):
+        self.settings.setValue("show_skeleton", state)
+        if self.viewport.fbx_viewport is not None:
+            self.viewport.fbx_viewport.set_show_skeleton(state)
+
+    def restore_display_settings(self):
+        if self.viewport.fbx_viewport is None:
+            return
+
+        self.show_meshes_action.setChecked(
+            self.settings.value("show_meshes", True, type=bool))
+        self.show_skeleton_action.setChecked(
+            self.settings.value("show_skeleton", True, type=bool))
+
+        # Reconnected after restoring, so the label only reacts to real changes.
+        self.viewport.fbx_viewport.preview_mesh_changed.connect(
+            self.refresh_preview_mesh_label)
+        # A mismatch only shows up once a clip is loaded and the bones are matched.
+        self.viewport.fbx_viewport.scene_content_updated.connect(
+            lambda _: self.warn_about_unbound_bones())
+
+        # Preview meshes live in the depot and can move between sessions. Anything that
+        # goes wrong restoring one is logged rather than shown, because a modal dialog here
+        # would block the window from finishing construction.
+        preview_mesh = self.settings.value("preview_mesh", "")
+        if preview_mesh:
+            self.viewport.set_preview_mesh(preview_mesh, warn=False)
 
     def load_all_selected(self):
         self.viewport.load_fbx_files(self.file_tree.get_selected_paths())

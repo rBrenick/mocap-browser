@@ -2,3 +2,7 @@
 # Python 3.11+, so a fresh venv on a modern interpreter needs PySide6.
 PySide6
 PyOpenGL
+
+# The skinned mesh preview evaluates ~30k vertices per frame; numpy is what keeps that
+# interactive. Without it the viewport still works, just bones only. Maya ships numpy.
+numpy

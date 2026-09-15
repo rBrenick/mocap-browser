@@ -1,6 +1,8 @@
 import sys
 import fbx
 
+from . import fbx_skinning
+
 
 def InitializeSdkObjects():
     # The first thing to do is to create the FBX SDK manager which is the
@@ -49,21 +51,50 @@ class FbxHandler():
         self.display_color = (1.0, 1.0, 1.0)
         self.hidden_nodes = []
 
+        # Skinning support. `meshes` are the ones this file carries itself; `pose` is this
+        # file's skeleton, which can just as well drive meshes loaded from another file.
+        self.meshes = []
+        self.pose = None
+        self.mesh_bindings = []
+
     def load_scene(self, file_path):
-        LoadScene(self.manager, self.scene, file_path)
+        if not LoadScene(self.manager, self.scene, file_path):
+            return False
+
         self.file_path = file_path
         self.anim_stack = self.scene.GetSrcObject(fbx.FbxCriteria().ObjectType(fbx.FbxAnimStack.ClassId), 0)
-        self.anim_layer = self.anim_stack.GetSrcObject(fbx.FbxCriteria().ObjectType(fbx.FbxAnimLayer.ClassId), 0)
+        # A mesh-only FBX has no animation to speak of, which is fine - it still has a
+        # skeleton worth binding to.
+        if self.anim_stack:
+            self.anim_layer = self.anim_stack.GetSrcObject(fbx.FbxCriteria().ObjectType(fbx.FbxAnimLayer.ClassId), 0)
+
+        self.meshes = fbx_skinning.extract_skinned_meshes(self.scene)
+        self.pose = fbx_skinning.SkeletonPose(self.scene)
         self.is_loaded = True
+        return True
 
     def unload_scene(self):
+        self.meshes = []
+        self.mesh_bindings = []
+        self.pose = None
         self.manager.Destroy()
         self.is_loaded = False
 
+    def bind_meshes(self, meshes):
+        """Drive `meshes` with this file's skeleton, matching bones up by name."""
+        self.mesh_bindings = [
+            fbx_skinning.SkinnedMeshBinding(mesh, self.pose) for mesh in meshes
+        ]
+        return self.mesh_bindings
+
     def get_start_frame(self):
+        if not self.anim_stack:
+            return 0
         return self.anim_stack.GetLocalTimeSpan().GetStart().GetFrameCount()
 
     def get_end_frame(self):
+        if not self.anim_stack:
+            return 0
         return self.anim_stack.GetLocalTimeSpan().GetStop().GetFrameCount()
 
     

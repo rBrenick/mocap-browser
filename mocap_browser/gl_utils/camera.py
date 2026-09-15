@@ -84,12 +84,19 @@ class Camera(object):
             viewportHeight = 2.0*viewportRadius
             viewportWidth = viewportHeight * self.viewportWidthInPixels / float(self.viewportHeightInPixels)
             
+        # The frustum belongs on the projection stack, not on top of the modelview. Both
+        # draw the same picture, but GL lights are positioned in eye space, so leaving the
+        # projection in the modelview matrix makes anything lit come out wrong.
+        glMatrixMode(GL_PROJECTION)
+        glLoadIdentity()
         glFrustum(
             - 0.5 * viewportWidth,  0.5 * viewportWidth,    # left, right
             - 0.5 * viewportHeight, 0.5 * viewportHeight,   # bottom, top
             self.nearPlane, self.farPlane
             )
 
+        glMatrixMode(GL_MODELVIEW)
+        glLoadIdentity()
         px, py, pz = self.position.get()
         tx, ty, tz = self.target.get()
         gluLookAt(px, py, pz, tx, ty, tz, *self.up.get())

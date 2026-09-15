@@ -18,6 +18,7 @@ if QT_BINDING == "PySide6":
         GLWidgetBase.__init__(widget, parent)
         surface_format = QtGui.QSurfaceFormat()
         surface_format.setSamples(4)  # what QGL.SampleBuffers asked for
+        surface_format.setDepthBufferSize(24)  # solid meshes need somewhere to depth test
         widget.setFormat(surface_format)
 
     def _set_clear_color(widget, color):
@@ -28,7 +29,9 @@ else:
 
     def _init_gl_widget(widget, parent):
         GLWidgetBase.__init__(
-            widget, QtOpenGL.QGLFormat(QtOpenGL.QGL.SampleBuffers), parent)
+            widget,
+            QtOpenGL.QGLFormat(QtOpenGL.QGL.SampleBuffers | QtOpenGL.QGL.DepthBuffer),
+            parent)
 
     def _set_clear_color(widget, color):
         widget.qglClearColor(color)
@@ -56,6 +59,8 @@ class BaseViewportWidget(GLWidgetBase):
 
     def initializeGL(self):
         _set_clear_color(self, self.background_color)
+        # Lines alone never needed this, but a solid mesh does.
+        GL.glEnable(GL.GL_DEPTH_TEST)
 
     def paintGL(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
