@@ -16,6 +16,24 @@ in the tree and choose **Use as preview mesh**. The mesh is matched to the clip 
 name, so any skinned FBX built on the same skeleton works, and the choice is remembered
 between sessions. Clips that carry their own meshes draw those instead.
 
+Bones the clip doesn't have, like twist or other deformation bones, follow their nearest
+parent that it does have, so they move with the limb instead of staying in bind pose.
+
+## Per project preview mesh
+Point the `MOCAP_BROWSER_CONFIG` environment variable at a json file to give a project a
+default preview mesh. Depot paths are synced from perforce before they are loaded, and
+`__THIS_FILE__` is replaced with the config's own path, same as in script-panel.
+
+```json
+{
+  "preview_mesh": "//depot/Characters/SK_PreviewMesh.fbx"
+}
+```
+
+Several configs can be given, separated by `;`, and **Display > Project** then switches
+between them. A mesh picked by hand is remembered per project and wins over the default.
+**Display > Use project preview mesh** goes back to it.
+
 # Install
 
 <pre>

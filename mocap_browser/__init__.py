@@ -23,6 +23,7 @@ def reload_modules():
     from . import mocap_browser_logger
     from . import mocap_browser_dcc_core
     from . import mocap_browser_dcc_maya
+    from . import mocap_browser_project
     from . import mocap_browser_system
     from . import mocap_browser_ui
     if fbx_utils is not None:
@@ -33,6 +34,7 @@ def reload_modules():
     reload(mocap_browser_logger)
     reload(mocap_browser_dcc_core)
     reload(mocap_browser_dcc_maya)
+    reload(mocap_browser_project)
     reload(mocap_browser_system)
     reload(mocap_browser_ui)
     
