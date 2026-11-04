@@ -4,6 +4,7 @@ import subprocess
 import functools
 
 from . import ui_utils
+from . import mocap_browser_project
 from .ui_utils import QtCore, QtWidgets, QtGui, QtOpenGL
 from .resources import get_image_path
 from .mocap_browser_system import dcc
@@ -253,6 +254,14 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         ]
 
         self.settings = QtCore.QSettings("mocap_browser", "MocapBrowser")
+
+        self.project_config_path = dcc.get_project_config_path()
+        self.project_preview_meshes = []  # as written in the config, the default first
+        if self.project_config_path:
+            self.project_preview_meshes = mocap_browser_project.get_preview_meshes(
+                self.project_config_path)
+        self.project_preview_mesh_path = ""  # local path of the default, once synced
+
         self.build_display_menu()
         self.restore_display_settings()
 
@@ -286,6 +295,10 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
 
         menu.addAction("Set preview mesh...", self.browse_for_preview_mesh)
         menu.addAction("Clear preview mesh", self.clear_preview_mesh)
+        for index, mesh_path in enumerate(self.project_preview_meshes):
+            menu.addAction(
+                "Use project preview mesh: {}".format(os.path.basename(mesh_path)),
+                lambda checked=False, index=index: self.use_project_preview_mesh(index))
         menu.addSeparator()
 
         self.show_meshes_action = menu.addAction("Show mesh")
@@ -306,8 +319,49 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         else:
             self.preview_mesh_label.setText("No preview mesh")
 
-        self.settings.setValue("preview_mesh", preview_mesh_path)
+        # Only a choice that differs from the project's is remembered, so a project that
+        # later points at a new mesh still reaches everyone who never picked their own.
+        if preview_mesh_path and self._is_project_preview_mesh(preview_mesh_path):
+            self.settings.remove(self.preview_mesh_settings_key)
+        else:
+            self.settings.setValue(self.preview_mesh_settings_key, preview_mesh_path)
         self.warn_about_unbound_bones()
+
+    @property
+    def preview_mesh_settings_key(self):
+        """Remembered per project, since each project has its own characters."""
+        if self.project_config_path:
+            return "project_preview_mesh/{}".format(
+                mocap_browser_project.get_project_name(self.project_config_path))
+        return "preview_mesh"
+
+    def _is_project_preview_mesh(self, path):
+        if not self.project_preview_mesh_path:
+            return False
+        return os.path.normcase(os.path.abspath(path)) == os.path.normcase(
+            os.path.abspath(self.project_preview_mesh_path))
+
+    def use_project_preview_mesh(self, index=0):
+        local_path = mocap_browser_project.sync_preview_mesh(
+            self.project_config_path, self.project_preview_meshes[index])
+        if index == 0:
+            # Only the default counts as "no choice made"; the others are remembered.
+            self.project_preview_mesh_path = local_path
+        self.viewport.set_preview_mesh(local_path)
+
+    def restore_preview_mesh(self):
+        """The project's preview mesh, unless the user picked or cleared their own."""
+        if self.settings.contains(self.preview_mesh_settings_key):
+            # Preview meshes live in the depot and can move between sessions. Anything that
+            # goes wrong restoring one is logged rather than shown, because a modal dialog
+            # here would block the window from finishing construction.
+            preview_mesh = self.settings.value(self.preview_mesh_settings_key, "")
+            if preview_mesh:
+                self.viewport.set_preview_mesh(preview_mesh, warn=False)
+        elif self.project_preview_meshes:
+            # Deferred until the window is up, so a failed sync raises through the event
+            # loop instead of stopping the window from being built.
+            QtCore.QTimer.singleShot(0, self.use_project_preview_mesh)
 
     def warn_about_unbound_bones(self):
         """A preview mesh built for a different skeleton half-poses and looks broken."""
@@ -372,12 +426,7 @@ class MocapBrowserWindow(ui_utils.ToolWindow):
         self.viewport.fbx_viewport.scene_content_updated.connect(
             lambda _: self.warn_about_unbound_bones())
 
-        # Preview meshes live in the depot and can move between sessions. Anything that
-        # goes wrong restoring one is logged rather than shown, because a modal dialog here
-        # would block the window from finishing construction.
-        preview_mesh = self.settings.value("preview_mesh", "")
-        if preview_mesh:
-            self.viewport.set_preview_mesh(preview_mesh, warn=False)
+        self.restore_preview_mesh()
 
     def load_all_selected(self):
         self.viewport.load_fbx_files(self.file_tree.get_selected_paths())

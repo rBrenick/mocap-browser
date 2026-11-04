@@ -96,6 +96,12 @@ class SkinnedMesh(object):
         self.inverse_bind = None  # (B, 4, 4) bone space <- geometry space, at bind time
         self.bind_matrices = None  # (B, 4, 4) skinning matrices that reproduce the bind pose
 
+        # Per bone slot, the bone's ancestors nearest first as (name, offset) pairs, where
+        # offset is the bone's bind transform relative to that ancestor's. Deformation bones
+        # (twists, correctives) rarely exist in a mocap skeleton, so they ride along on the
+        # closest ancestor that does instead of staying frozen at bind pose.
+        self.bone_ancestors = []
+
         self.skin_indices = None  # (V, MAX_INFLUENCES) into bone_names
         self.skin_weights = None  # (V, MAX_INFLUENCES) normalised per vertex
 
@@ -107,23 +113,50 @@ class SkinnedMesh(object):
     def triangle_count(self):
         return 0 if self.triangles is None else len(self.triangles) // 3
 
-    def build_skin_matrices(self, pose, time):
+    def resolve_drivers(self, pose):
+        """Which skeleton node drives each bone slot, as (name, offset) pairs.
+
+        A bone the skeleton has drives itself (offset None). A bone it lacks follows its
+        nearest ancestor that it does have, keeping its bind pose offset from it. A bone
+        with no such ancestor gets (None, None) and stays at its bind matrix.
+        """
+        drivers = []
+        for bone_index, bone_name in enumerate(self.bone_names):
+            if pose.has_bone(bone_name):
+                drivers.append((bone_name, None))
+                continue
+
+            ancestors = self.bone_ancestors[bone_index] if self.bone_ancestors else []
+            for ancestor_name, offset in ancestors:
+                if pose.has_bone(ancestor_name):
+                    drivers.append((ancestor_name, offset))
+                    break
+            else:
+                drivers.append((None, None))
+        return drivers
+
+    def build_skin_matrices(self, pose, time, drivers=None):
         """One (B, 4, 4) stack of geometry-space -> world-space matrices for `time`.
 
-        A bone the driving skeleton does not have keeps its bind matrix, so vertices
-        weighted to it stay where they sat at bind time rather than collapsing.
+        A bone with no driver keeps its bind matrix, so vertices weighted to it stay where
+        they sat at bind time rather than collapsing.
         """
+        if drivers is None:
+            drivers = self.resolve_drivers(pose)
+
         skin_matrices = self.bind_matrices.copy()
-        for bone_index, bone_name in enumerate(self.bone_names):
-            bone_global = pose.get_matrix(bone_name, time)
+        for bone_index, (driver_name, offset) in enumerate(drivers):
+            bone_global = pose.get_matrix(driver_name, time)
             if bone_global is None:
                 continue
+            if offset is not None:
+                bone_global = bone_global @ offset
             skin_matrices[bone_index] = bone_global @ self.inverse_bind[bone_index]
         return skin_matrices
 
-    def evaluate(self, pose, time):
+    def evaluate(self, pose, time, drivers=None):
         """Pose the mesh, returning (positions, normals) as float32 (V, 3) arrays."""
-        skin_matrices = self.build_skin_matrices(pose, time)
+        skin_matrices = self.build_skin_matrices(pose, time, drivers)
 
         # Linear blend skinning is linear in the matrices, so blending the matrices first
         # costs one gather instead of one matrix-vector product per influence.
@@ -302,6 +335,21 @@ def extract_skinned_mesh(node):
     inverse_bind = np.zeros((bone_count, 4, 4), dtype=np.float32)
     bind_matrices = np.zeros((bone_count, 4, 4), dtype=np.float32)
 
+    # Bind transforms of every bone this mesh is skinned to, so ancestor offsets use the
+    # same pose the skin was bound in. Other ancestors fall back to their scene pose.
+    link_binds = {}
+    for deformer_index in range(mesh.GetDeformerCount(SKIN_DEFORMER_TYPE)):
+        skin = mesh.GetDeformer(deformer_index, SKIN_DEFORMER_TYPE)
+        for cluster_index in range(skin.GetClusterCount()):
+            cluster = skin.GetCluster(cluster_index)
+            link = cluster.GetLink()
+            if link is None:
+                continue
+            bone_at_bind = fbx.FbxAMatrix()
+            cluster.GetTransformLinkMatrix(bone_at_bind)
+            link_binds.setdefault(link.GetName(), to_numpy_matrix(bone_at_bind))
+
+    bone_ancestors = []
     mesh_bind_transform = None
     bone_index = 0
     for deformer_index in range(mesh.GetDeformerCount(SKIN_DEFORMER_TYPE)):
@@ -325,6 +373,8 @@ def extract_skinned_mesh(node):
             )
             bind_matrices[bone_index] = to_numpy_matrix(mesh_at_bind)
             mesh_bind_transform = bind_matrices[bone_index]
+            bone_ancestors.append(_get_ancestor_offsets(
+                cluster.GetLink(), to_numpy_matrix(bone_at_bind), link_binds))
             bone_index += 1
 
     if has_skin:
@@ -334,16 +384,37 @@ def extract_skinned_mesh(node):
             fallback = to_numpy_matrix(geometric_transform)
         inverse_bind[bone_index] = fallback
         bind_matrices[bone_index] = fallback
+        bone_ancestors.append([])
     else:
         node_transform = to_numpy_matrix(node.EvaluateGlobalTransform())
         geometry = to_numpy_matrix(geometric_transform)
         inverse_bind[bone_index] = geometry
         bind_matrices[bone_index] = node_transform @ geometry
+        # A rigid mesh parented under a bone (props, attachments) follows that bone when
+        # the clip has no node of the mesh's own name.
+        bone_ancestors.append(_get_ancestor_offsets(node, node_transform, link_binds))
 
     skinned_mesh.inverse_bind = inverse_bind
     skinned_mesh.bind_matrices = bind_matrices
+    skinned_mesh.bone_ancestors = bone_ancestors
 
     return skinned_mesh
+
+
+def _get_ancestor_offsets(bone_node, bone_bind, link_binds):
+    """(ancestor_name, bone relative to ancestor at bind) for each ancestor, nearest first."""
+    ancestors = []
+    ancestor = bone_node.GetParent()
+    # The scene root has no parent and is never a real bone, so it is left out.
+    while ancestor is not None and ancestor.GetParent() is not None:
+        ancestor_name = ancestor.GetName()
+        ancestor_bind = link_binds.get(ancestor_name)
+        if ancestor_bind is None:
+            ancestor_bind = to_numpy_matrix(ancestor.EvaluateGlobalTransform())
+        offset = np.linalg.inv(ancestor_bind) @ bone_bind
+        ancestors.append((ancestor_name, offset.astype(np.float32)))
+        ancestor = ancestor.GetParent()
+    return ancestors
 
 
 def _face_normals(positions, triangles):
@@ -435,11 +506,18 @@ class SkinnedMeshBinding(object):
     def __init__(self, mesh, pose):
         self.mesh = mesh
         self.pose = pose
-        self.missing_bones = [
-            name
-            for name in mesh.bone_names
-            if name is not None and not pose.has_bone(name)
-        ]
+        self.drivers = mesh.resolve_drivers(pose)
+
+        # Bones the skeleton lacks with no ancestor to follow, and those following one.
+        self.missing_bones = []
+        self.parented_bones = []
+        for name, (driver_name, _) in zip(mesh.bone_names, self.drivers):
+            if name is None or driver_name == name:
+                continue
+            if driver_name is None:
+                self.missing_bones.append(name)
+            else:
+                self.parented_bones.append(name)
 
         self._cached_frame = None
         self._cached_result = None
@@ -447,7 +525,7 @@ class SkinnedMeshBinding(object):
     @property
     def is_bound(self):
         """Did any bone resolve? An unbound mesh would just sit at its bind pose."""
-        return any(self.pose.has_bone(name) for name in self.mesh.bone_names)
+        return any(driver_name is not None for driver_name, _ in self.drivers)
 
     def evaluate(self, time, frame):
         """Posed (positions, normals) for `frame`, reusing the last result when possible.
@@ -457,6 +535,6 @@ class SkinnedMeshBinding(object):
         """
         if frame != self._cached_frame:
             self.pose.set_frame(frame)
-            self._cached_result = self.mesh.evaluate(self.pose, time)
+            self._cached_result = self.mesh.evaluate(self.pose, time, self.drivers)
             self._cached_frame = frame
         return self._cached_result
