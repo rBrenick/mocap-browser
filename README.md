@@ -30,8 +30,7 @@ default preview mesh. Depot paths are synced from perforce before they are loade
 }
 ```
 
-Several configs can be given, separated by `;`, and **Display > Project** then switches
-between them. A mesh picked by hand is remembered per project and wins over the default.
+A mesh picked by hand is remembered per project and wins over the default.
 **Display > Use project preview mesh** goes back to it.
 
 # Install
