@@ -30,8 +30,11 @@ default preview mesh. Depot paths are synced from perforce before they are loade
 }
 ```
 
-A mesh picked by hand is remembered per project and wins over the default.
-**Display > Use project preview mesh** goes back to it.
+`preview_mesh` can also be a list of paths. The first one is the default, and each one
+gets its own **Display > Use project preview mesh: ...** entry.
+
+A mesh picked by hand, or a project mesh other than the default, is remembered per
+project and wins over the default. Picking the default again goes back to it.
 
 # Install
 

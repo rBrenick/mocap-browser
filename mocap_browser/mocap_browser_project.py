@@ -7,6 +7,8 @@ can be written relative to it.
     {
         "preview_mesh": "//depot/path/to/SK_PreviewMesh.fbx"
     }
+
+"preview_mesh" can also be a list of paths, in which case the first one is the default.
 """
 
 import json
@@ -32,16 +34,23 @@ def load_config(config_path):
     return json.loads(raw)
 
 
-def sync_preview_mesh(config_path):
-    """Sync the config's preview mesh from perforce and return its local path.
+def get_preview_meshes(config_path):
+    """The project's preview mesh paths as written in the config, the default first."""
+    if not os.path.isfile(config_path):
+        log.warning("Project config not found: {}".format(config_path))
+        return []
 
-    Returns "" when the config has no preview mesh, and raises when it has one that
-    can't be found on disk afterwards.
+    mesh_paths = load_config(config_path).get("preview_mesh", [])
+    if isinstance(mesh_paths, str):
+        mesh_paths = [mesh_paths]
+    return [mesh_path for mesh_path in mesh_paths if mesh_path]
+
+
+def sync_preview_mesh(config_path, mesh_path):
+    """Sync one of the config's preview meshes from perforce and return its local path.
+
+    Raises when it can't be found on disk afterwards.
     """
-    mesh_path = load_config(config_path).get("preview_mesh", "")
-    if not mesh_path:
-        return ""
-
     # p4 finds its P4CONFIG by walking up from here, and the config lives in the workspace.
     cwd = os.path.dirname(os.path.abspath(config_path))
     _run_p4(["sync", mesh_path], cwd)
