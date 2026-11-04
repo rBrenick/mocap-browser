@@ -5,10 +5,10 @@ json file, and "__THIS_FILE__" inside it is replaced with that file's own path s
 can be written relative to it.
 
     {
-        "preview_mesh": "//depot/path/to/SK_PreviewMesh.fbx"
+        "preview_meshes": ["//depot/path/to/SK_PreviewMesh.fbx"]
     }
 
-"preview_mesh" can also be a list of paths, in which case the first one is the default.
+The first entry in "preview_meshes" is the default.
 """
 
 import json
@@ -40,7 +40,7 @@ def get_preview_meshes(config_path):
         log.warning("Project config not found: {}".format(config_path))
         return []
 
-    mesh_paths = load_config(config_path).get("preview_mesh", [])
+    mesh_paths = load_config(config_path).get("preview_meshes", [])
     if isinstance(mesh_paths, str):
         mesh_paths = [mesh_paths]
     return [mesh_path for mesh_path in mesh_paths if mesh_path]

@@ -26,12 +26,15 @@ default preview mesh. Depot paths are synced from perforce before they are loade
 
 ```json
 {
-  "preview_mesh": "//depot/Characters/SK_PreviewMesh.fbx"
+  "preview_meshes": [
+    "//depot/Characters/SK_PreviewMesh.fbx",
+    "//depot/Characters/SK_OtherMesh.fbx"
+  ]
 }
 ```
 
-`preview_mesh` can also be a list of paths. The first one is the default, and each one
-gets its own **Display > Use project preview mesh: ...** entry.
+The first one is the default, and each one gets its own
+**Display > Use project preview mesh: ...** entry.
 
 A mesh picked by hand, or a project mesh other than the default, is remembered per
 project and wins over the default. Picking the default again goes back to it.
